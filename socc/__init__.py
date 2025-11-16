@@ -2,7 +2,7 @@
 
 # Add imports here
 from .ccwfn import ccwfn
-from .hamiltonian import Hamiltonian
+from .hamiltonian import hamiltonian
 from .cchbar import cchbar
 from .cclambda import cclambda
 from .ccdensity import ccdensity

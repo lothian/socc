@@ -9,6 +9,7 @@ import psi4
 import time
 import numpy as np
 from opt_einsum import contract
+from .hamiltonian import hamiltonian
 from .utils import helper_diis, print_wfn, permute_triples
 from .cctriples import t_viking_ijk, t_viking_abc, t3c_ijk
 import sys
@@ -117,7 +118,7 @@ class ccwfn(object):
         Ca = self.ref.Ca_subset("AO", "ACTIVE")
         Cb = self.ref.Cb_subset("AO", "ACTIVE")
 
-        self.H = Hamiltonian(self.ref, Ca, Cb, spin, spat)
+        self.H = hamiltonian(self.ref, Ca, Cb, spin, spat)
 
         # denominators
         eps_occ = np.diag(self.H.F)[o]

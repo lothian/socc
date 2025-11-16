@@ -6,7 +6,7 @@ import psi4
 import numpy as np
 
 
-class Hamiltonian(object):
+class hamiltonian(object):
     """
     A molecular spin-orbital Hamiltonian object.
 
