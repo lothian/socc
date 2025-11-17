@@ -16,7 +16,7 @@ jobs:
       run:
         shell: bash -l {0}
 
-    name: PyCC Test ${{ matrix.os }}, Python ${{ matrix.python-version }}
+    name: socc Test ${{ matrix.os }}, Python ${{ matrix.python-version }}
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: true
@@ -51,7 +51,7 @@ jobs:
         conda list --show-channel-urls
         hash -r
         env
-        conda install psi4 python=${{ matrix.python-version }} numpy=1 -c conda-forge
+        conda install psi4 python=${{ matrix.python-version }} numpy opt_einsum -c conda-forge
         ls -l $CONDA
 
     - name: Test Psi4 Python Loading
