@@ -3,7 +3,7 @@ import socc
 import pytest
 from ..data.molecules import *
 
-def test_ccsd_h2o():
+def test_ccsd_t_energy():
     psi4.core.clean()
     psi4.set_memory('2 GB')
     psi4.core.set_output_file('output.dat', False)

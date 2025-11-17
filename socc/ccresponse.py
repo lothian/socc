@@ -119,6 +119,7 @@ class ccresponse(object):
         print(polar)
         print(f"Evaluated at omega = {omega:8.6f} E_h")
 
+        return polar
 
     def optrot(self, omega, e_conv=1e-12, r_conv=1e-12, maxiter=200, max_diis=7, start_diis=1):
         """
@@ -216,6 +217,8 @@ class ccresponse(object):
         print(f"{self.ccwfn.model:s} Optical Rotation Tensor (Length Gauge):")
         print(tensor)
         print(f"Evaluated at omega = {omega:8.6f} E_h")
+
+        return tensor
 
 
     def linresp(self, A, X_A, B, X_B):

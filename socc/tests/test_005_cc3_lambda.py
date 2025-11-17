@@ -3,7 +3,7 @@ import socc
 import pytest
 from ..data.molecules import *
 
-def test_cc3_energy():
+def test_cc3_lambda():
     psi4.core.clean()
     psi4.set_memory('2 GB')
     psi4.core.set_output_file('output.dat', False)
@@ -20,27 +20,24 @@ def test_cc3_energy():
     e_conv = 1e-12
     r_conv = 1e-12
 
-    mol = psi4.geometry(moldict["H2O_Pycc"])
+    mol = psi4.geometry(moldict["H2O"])
     scf_e, scf_wfn = psi4.energy('SCF', return_wfn=True)
     cc_wfn = socc.ccwfn(scf_wfn, model='CC3')
     ecc = cc_wfn.solve_cc(e_conv, r_conv)
-    epsi4 = -0.070714823977789
+    hbar = socc.cchbar(cc_wfn)
+    cclambda = socc.cclambda(cc_wfn, hbar)
+    lcc = cclambda.solve_lambda(e_conv, r_conv)
+    epsi4 = -0.0707148636207360
+    lpsi4 = -0.0689177907842559
     assert (abs(epsi4 - ecc) < 1e-11)
+    assert (abs(lpsi4 - lcc) < 1e-11)
 
     cc_wfn = socc.ccwfn(scf_wfn, model='CC3')
     ecc = cc_wfn.solve_cc(e_conv, r_conv, store_triples=True)
+    hbar = socc.cchbar(cc_wfn)
+    cclambda = socc.cclambda(cc_wfn, hbar)
+    lcc = cclambda.solve_lambda(e_conv, r_conv)
+    epsi4 = -0.0707148636207360
+    lpsi4 = -0.0689177907842559
     assert (abs(epsi4 - ecc) < 1e-11)
-
-
-    # cc-pVDZ basis set
-    psi4.core.clean()
-    psi4.set_options({'basis': 'cc-pVDZ'})
-    scf_e, scf_wfn = psi4.energy('SCF', return_wfn=True)
-    cc_wfn = socc.ccwfn(scf_wfn, model='CC3')
-    ecc = cc_wfn.solve_cc(e_conv, r_conv)
-    epsi4 = -0.225982859180558
-    assert (abs(epsi4 - ecc) < 1e-11)
-
-    cc_wfn = socc.ccwfn(scf_wfn, model='CC3')
-    ecc = cc_wfn.solve_cc(e_conv, r_conv, store_triples=True)
-    assert (abs(epsi4 - ecc) < 1e-11)
+    assert (abs(lpsi4 - lcc) < 1e-11)
