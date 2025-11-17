@@ -1,4 +1,16 @@
 name: CI
+channels:
+  - conda-forge
+  - defaults
+
+dependencies:
+  - python
+  - pip
+  - numpy
+  - opt_einsum
+  - pytest
+  - pytest-cov
+  - codecov
 
 on:
   push:
@@ -51,7 +63,7 @@ jobs:
         conda list --show-channel-urls
         hash -r
         env
-        conda install psi4 python=${{ matrix.python-version }} numpy opt_einsum -c conda-forge
+        conda install psi4 python=${{ matrix.python-version }} numpy -c conda-forge
         ls -l $CONDA
 
     - name: Test Psi4 Python Loading

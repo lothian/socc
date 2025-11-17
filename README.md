@@ -1,8 +1,8 @@
 socc
 ==============================
 [//]: # (Badges)
-[![GitHub Actions Build Status](https://github.com/REPLACE_WITH_OWNER_ACCOUNT/socc/workflows/CI/badge.svg)](https://github.com/REPLACE_WITH_OWNER_ACCOUNT/socc/actions?query=workflow%3ACI)
-[![codecov](https://codecov.io/gh/REPLACE_WITH_OWNER_ACCOUNT/socc/branch/main/graph/badge.svg)](https://codecov.io/gh/REPLACE_WITH_OWNER_ACCOUNT/socc/branch/main)
+[![GitHub Actions Build Status](https://github.com/lothian/socc/workflows/CI/badge.svg)](https://github.com/lothian/socc/actions?query=workflow%3ACI)
+[![codecov](https://codecov.io/gh/lothian/socc/branch/main/graph/badge.svg)](https://codecov.io/gh/lothian/socc/branch/main)
 
 
 A spin-orbital-based reference CC implementation.
