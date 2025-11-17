@@ -4,9 +4,7 @@ socc
 [![GitHub Actions Build Status](https://github.com/lothian/socc/workflows/CI/badge.svg)](https://github.com/lothian/socc/actions?query=workflow%3ACI)
 [![codecov](https://codecov.io/gh/lothian/socc/branch/main/graph/badge.svg)](https://codecov.io/gh/lothian/socc/branch/main)
 
-A spin-orbital-based reference CC implementation.
-
-A Python-based coupled cluster implementation.  Current capabilities include:
+A spin-orbital-based reference CC implementation. Current capabilities include:
   - Spin-orbital CCSD, CCSD(T), and CC3 energies
   - Triples-drivers for various approximate triples methods
   - CCSD densities
