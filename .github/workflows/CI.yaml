@@ -1,12 +1,4 @@
 name: CI
-dependencies:
-  - python
-  - pip
-  - numpy
-  - opt_einsum
-  - pytest
-  - pytest-cov
-  - codecov
 
 on:
   push:
