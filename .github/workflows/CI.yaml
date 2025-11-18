@@ -64,7 +64,6 @@ jobs:
     - name: Install socc and Deps
       run: |
         pip install -e .
-        pip install opt_einsum
         pip install pytest
         pip install pytest-cov
 
