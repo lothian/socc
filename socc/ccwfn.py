@@ -125,7 +125,7 @@ class ccwfn(object):
         if self.field is True:
             field_strength = kwargs.pop('field_strength', 0.0)
             field_axis = kwargs.pop('field_axis', 'Z').upper()
-            if field_axis not in self.cart:
+            if field_axis not in cart:
                 raise Exception("Only X, Y, or Z are allowed field axes.")
             print("Adding %8.5f dipole field along %s axis to Hamiltonian." % (field_strength, field_axis))
             field_axis = cart[field_axis]
@@ -437,7 +437,7 @@ class ccwfn(object):
         return x1, x2
 
 
-    def CC3_full(self, o, v, F, ERI, Fme, t1, t2, V):
+    def CC3_full(self, o, v, F, ERI, Fme, t1, t2, V=0):
         Woooo = self.build_Woooo_CC3(o, v, ERI, t1)
         Wovoo = self.build_Wovoo_CC3(o, v, ERI, t1, Woooo)
         Wooov = self.build_Wooov_CC3(o, v, ERI, t1)
