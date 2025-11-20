@@ -79,6 +79,9 @@ class ccwfn(object):
             raise Exception("%s is not an allowed CC model." % (model))
         self.model = model
 
+        # Cartesian indices
+        cart = {"X":0, "Y":1, "Z":2}
+
         self.ref = scf_wfn
         self.eref = self.ref.energy()
         self.nfzc = self.ref.nfrzc()               # frozen core MOs (not spin-orbitals)
@@ -118,7 +121,17 @@ class ccwfn(object):
         Ca = self.ref.Ca_subset("AO", "ACTIVE")
         Cb = self.ref.Cb_subset("AO", "ACTIVE")
 
-        self.H = hamiltonian(self.ref, Ca, Cb, spin, spat)
+        self.field = kwargs.pop('field', False)
+        if self.field is True:
+            field_strength = kwargs.pop('field_strength', 0.0)
+            field_axis = kwargs.pop('field_axis', 'Z').upper()
+            if field_axis not in self.cart:
+                raise Exception("Only X, Y, or Z are allowed field axes.")
+            print("Adding %8.5f dipole field along %s axis to Hamiltonian." % (field_strength, field_axis))
+            field_axis = cart[field_axis]
+            self.H = hamiltonian(self.ref, Ca, Cb, spin, spat, field_strength=field_strength, field_axis=field_axis)
+        else:
+            self.H = hamiltonian(self.ref, Ca, Cb, spin, spat)
 
         # denominators
         eps_occ = np.diag(self.H.F)[o]
@@ -167,6 +180,8 @@ class ccwfn(object):
         self.store_triples = kwargs.pop('store_triples', False)
         if self.store_triples is True:
             print("Triples tensors will be stored in full.")
+        elif self.field is True and self.model == 'CC3':
+            raise Exception("External fields require full storage of triples in CC3 energy calculations.")
 
         o = self.o
         v = self.v
@@ -255,7 +270,10 @@ class ccwfn(object):
 
         if self.model == 'CC3':
             if self.store_triples is True:
-                x1, x2 = self.CC3_full(o, v, F, ERI, Fme, t1, t2)
+                if self.field is True:
+                    x1, x2 = self.CC3_full(o, v, self.H.F0, ERI, Fme, t1, t2, self.H.V)
+                else:
+                    x1, x2 = self.CC3_full(o, v, F, ERI, Fme, t1, t2)
             else:
                 x1, x2 = self.CC3(o, v, F, ERI, Fme, t1, t2)
 
@@ -419,22 +437,32 @@ class ccwfn(object):
         return x1, x2
 
 
-    def CC3_full(self, o, v, F, ERI, Fme, t1, t2):
+    def CC3_full(self, o, v, F, ERI, Fme, t1, t2, V):
         Woooo = self.build_Woooo_CC3(o, v, ERI, t1)
         Wovoo = self.build_Wovoo_CC3(o, v, ERI, t1, Woooo)
         Wooov = self.build_Wooov_CC3(o, v, ERI, t1)
         Wvovv = self.build_Wvovv_CC3(o, v, ERI, t1)
         Wvvvo = self.build_Wvvvo_CC3(o, v, ERI, t1)
 
+        # <mu3|[H^,T2]|0>
         tmp = contract('ijad,bcdk->ijkabc', t2, Wvvvo)
         t3 = permute_triples(tmp, 'k/ij', 'a/bc')
-
         tmp = -contract('ilab,lcjk->ijkabc', t2, Wovoo)
         t3 += permute_triples(tmp, 'i/jk', 'c/ab')
 
+        if self.field is True:
+            # <mu3|[V,T3]|0>
+            tmp = contract('ijkabc,dc->ijkabd', self.t3, V[v,v])
+            t3 += tmp - tmp.swapaxes(3,5) - tmp.swapaxes(4,5)
+            tmp -= contract('ijkabc,kl->ijlabc', self.t3, V[o,o])
+            t3 += tmp - tmp.swapaxes(0,2) - tmp.swapaxes(1,2)
+            # 1/2 <mu3|[[V,T2],T2]|0>
+            tmp = contract('lkbc,ld->bcdk', t2, V[o,v])
+            tmp = contract('bcdk,ijad->ijkabc', t2, tmp)
+            t3 += permute_triples(tmp, 'k/ij', 'a/bc')
+
         occ = np.diag(F)[o]
         vir = np.diag(F)[v]
-
         denom = occ.reshape(-1,1,1,1,1,1) + occ.reshape(-1,1,1,1,1) + occ.reshape(-1,1,1,1) - vir.reshape(-1,1,1) - vir.reshape(-1,1) - vir
         t3 = t3/denom
 
