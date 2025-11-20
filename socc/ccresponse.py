@@ -831,7 +831,7 @@ class ccresponse(object):
         tmp = -contract('ijkabc,kl->ijlabc', t3, pertbar.Aoo)
         X3 += tmp - tmp.swapaxes(0,2) - tmp.swapaxes(1,2)
 
-        # <mu3|[[A,T2],T2]|0>
+        # 1/2 <mu3|[[A,T2],T2]|0>
         tmp = contract('lkbc,ld->bcdk', t2, pertbar.Aov)
         X3_a = -contract('ijad,bcdk->ijkabc', t2, tmp)
         # <mu3|[[H^,T2],X1]|0>
