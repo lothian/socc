@@ -61,10 +61,10 @@ def test_cc3_polar_findif():
 
     # Compute dipole moment
     mu_z = -(-e2p + 8*ep - 8*em + e2m)/(12*F)
-    print(mu_z)
-    print("CFOUR mu_z = 0.0724134575.")
+    cfour_mu_z = 0.0724134575
+    assert(np.abs(mu_z - cfour_mu_z) < 1e-7)
 
     # compute polarizability
     alpha_zz = -(-e2p + 16*ep - 30*e0 + 16*em - e2m)/(12*F*F)
-    print(alpha_zz)
-    print("CFOUR alpha_zz = 2.9745913.")
+    cfour_alpha_zz = 2.9745913
+    assert(np.abs(alpha_zz - cfour_alpha_zz) < 1e-7)

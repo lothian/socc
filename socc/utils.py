@@ -35,7 +35,7 @@ def permute_triples(ijkabc, perm_ijk, perm_abc):
 
     return t3
 
-def print_wfn(t1, t2):
+def print_wfn(t1, t2, t3=0):
     no = t1.shape[0]
     nv = t1.shape[1]
 
@@ -70,6 +70,28 @@ def print_wfn(t1, t2):
             this_val = t2[i,j,a,b]
             print("%d %d %d %d %20.14f" % (i, j, a, b, t2[i,j,a,b]))
             num_printed += 1
+
+    if t3 != 0:
+        t3_amps = -np.abs(t3.flatten())
+        t3_idx = np.argsort(t3_amps)
+        this_val = 0.0
+        num_printed = 0
+        for idx in range(len(t3_amps)):
+            ijkabc = t3_idx[idx]
+            i = ijkabc//(no*no*nv*nv*nv)
+            jkabc = ijkabc%(no*no*nv*nv*nv)
+            j = jkabc//(no*nv*nv*nv)
+            kabc = jkabc%(no*nv*nv*nv)
+            k = kabc//(nv*nv*nv)
+            abc = kabc%(nv*nv*nv)
+            a = abc//(nv*nv)
+            bc = abc%(nv*nv)
+            b = bc//(nv)
+            c = bc%(nv)
+            if np.abs(np.abs(this_val)-np.abs(t3[i,j,k,a,b,c])) > 1e-10 and np.abs(t3[i,j,k,a,b,c]) > 1e-12 and num_printed < max_print:
+                this_val = t3[i,j,k,a,b,c]
+                print("%d %d %d %d %d %d %20.14f" % (i, j, k, a, b, c, t3[i,j,k,a,b,c]))
+                num_printed += 1
 
 
 class helper_diis(object):

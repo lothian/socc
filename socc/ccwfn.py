@@ -172,6 +172,13 @@ class ccwfn(object):
         """
         ccsd_tstart = time.time()
 
+        o = self.o
+        v = self.v
+        F = self.H.F
+        ERI = self.H.ERI
+        Dia = self.Dia
+        Dijab = self.Dijab
+
         valid_t_algorithms = ['IJK', 'ABC']
         t_alg = kwargs.pop('alg','IJK').upper()
         if t_alg not in valid_t_algorithms:
@@ -180,15 +187,11 @@ class ccwfn(object):
         self.store_triples = kwargs.pop('store_triples', False)
         if self.store_triples is True:
             print("Triples tensors will be stored in full.")
+            no = self.no
+            nv = self.nv
+            self.t3 = np.zeros((no, no, no, nv, nv, nv))
         elif self.field is True and self.model == 'CC3':
             raise Exception("External fields require full storage of triples in CC3 energy calculations.")
-
-        o = self.o
-        v = self.v
-        F = self.H.F
-        ERI = self.H.ERI
-        Dia = self.Dia
-        Dijab = self.Dijab
 
         ecc = self.cc_energy(o, v, F, ERI, self.t1, self.t2)
         print("CC Iter %3d: CC Ecorr = %.15f  dE = % .5E  MP2" % (0, ecc, -ecc))
@@ -451,14 +454,16 @@ class ccwfn(object):
         t3 += permute_triples(tmp, 'i/jk', 'c/ab')
 
         if self.field is True:
+            Voo = V[o,o].copy() + contract('ie,me->mi', t1, V[o,v])
+            Vvv = V[v,v].copy() - contract('ma,me->ae', t1, V[o,v])
             # <mu3|[V,T3]|0>
-            tmp = contract('ijkabc,dc->ijkabd', self.t3, V[v,v])
+            tmp = contract('ijkabc,dc->ijkabd', self.t3, Vvv)
             t3 += tmp - tmp.swapaxes(3,5) - tmp.swapaxes(4,5)
-            tmp -= contract('ijkabc,kl->ijlabc', self.t3, V[o,o])
+            tmp = -contract('ijkabc,kl->ijlabc', self.t3, Voo)
             t3 += tmp - tmp.swapaxes(0,2) - tmp.swapaxes(1,2)
             # 1/2 <mu3|[[V,T2],T2]|0>
             tmp = contract('lkbc,ld->bcdk', t2, V[o,v])
-            tmp = contract('bcdk,ijad->ijkabc', t2, tmp)
+            tmp = -contract('bcdk,ijad->ijkabc', tmp, t2)
             t3 += permute_triples(tmp, 'k/ij', 'a/bc')
 
         occ = np.diag(F)[o]

@@ -35,13 +35,14 @@ H 3 0.75 2 90.0 1 60.0
 symmetry c1
 """
 
-# Chiral H2O2 for optical rotation test
+# Chiral H2O2 from Dalton for optical rotation test
 h2o2 = """
-O
-O 1 1.39
-H 1 0.94 2 102.3
-H 2 0.94 1 102.3 3 -50.0
+O   1.3133596569   0.0000000000  -0.0932359644
+O  -1.3133596569  -0.0000000000  -0.0932359644
+H   1.6917745981   0.7334825768   1.4797224976
+H  -1.6917745981  -0.7334825768   1.4797224976
 symmetry c1
+units bohr
 """
 
 moldict = {}

@@ -27,8 +27,8 @@ def test_cc3_polar_findif():
 
     model = 'CC3'
     mol = psi4.geometry(moldict['H2O'])
-    scf_e, scf_wfn = psi4.energy('SCF', return_wfn=True)
 
+    scf_e, scf_wfn = psi4.energy('SCF', return_wfn=True)
     cc_wfn = socc.ccwfn(scf_wfn, model=model)
     e0 = cc_wfn.solve_cc(e_conv,r_conv,maxiter, store_triples=True)
 
@@ -61,10 +61,8 @@ def test_cc3_polar_findif():
 
     # Compute dipole moment
     mu_z = -(-e2p + 8*ep - 8*em + e2m)/(12*F)
-    print(mu_z)
-    print("CFOUR mu_z = 0.0724134575.")
 
     # compute polarizability
     alpha_zz = -(-e2p + 16*ep - 30*e0 + 16*em - e2m)/(12*F*F)
     print(alpha_zz)
-    print("CFOUR alpha_zz = 2.9745913.")
+    print("Dalton alpha_zz = 2.9989468.")
