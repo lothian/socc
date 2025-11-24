@@ -30,19 +30,20 @@ def test_ccsd_optrot():
     hbar = socc.cchbar(cc_wfn)
     lambda_wfn = socc.cclambda(cc_wfn, hbar)
     lcc = lambda_wfn.solve_lambda(e_conv, r_conv)
-    epsi4 = -0.097061805905703
-    lpsi4 = -0.094659751261054
+    epsi4 = -0.097061805835190
+    lpsi4 = -0.094659751195269
     assert (abs(epsi4 - ecc) < 1e-11)
     assert (abs(lpsi4 - lcc) < 1e-11)
     ccresp = socc.ccresponse(cc_wfn, lambda_wfn)
     omega = 0.077357 # 589 nm
     optrot = ccresp.optrot(omega)
 
-#    psi4.properties('CCSD', properties=['rotation'])
+    #psi4.properties('CCSD', properties=['rotation'])
 
-    psi4_optrot = np.array([[ 0.124406421539390,  0.039665773574171, -0.000000000000002],
-                            [-0.238413336061875, -0.012969077558462,  0.000000000000001],
-                            [ 0.000000000000004, -0.000000000000001, -0.112853202325508]])
+    psi4_optrot = np.array([[-0.012969077546209,  0.238413335857954, 0.000000000000000],
+                            [-0.039665773503841, 0.124406421486684, -0.000000000000000],
+                            [-0.000000000000000, 0.000000000000000, -0.112853202255656]])
+
     assert(np.allclose(psi4_optrot, optrot, 1e-10))
 
     # cc-pVDZ basis set
@@ -53,17 +54,18 @@ def test_ccsd_optrot():
     hbar = socc.cchbar(cc_wfn)
     lambda_wfn = socc.cclambda(cc_wfn, hbar)
     lcc = lambda_wfn.solve_lambda(e_conv, r_conv)
-    epsi4 = -0.394679216819712
-    lpsi4 = -0.386314800333307
+    epsi4 = -0.394679216778747
+    lpsi4 = -0.386314800298656
     assert (abs(epsi4 - ecc) < 1e-11)
     assert (abs(lpsi4 - lcc) < 1e-11)
     ccresp = socc.ccresponse(cc_wfn, lambda_wfn)
     omega = 0.077357  # 589 nm
     optrot = ccresp.optrot(omega)
 
-#    psi4.properties('CCSD', properties=['rotation'])
+    #psi4.properties('CCSD', properties=['rotation'])
 
-    psi4_optrot = np.array([[ 0.155734081834151, -0.064272290708449, -0.000000000000058],
-                            [-0.266267948269857, -0.012765691621003,  0.000000000000006],
-                            [ 0.000000000000033,  0.000000000000007, -0.127276678710314]])
+    psi4_optrot = np.array([[-0.012765691587814, 0.266267947958225,  0.000000000000002],
+                            [ 0.064272290616867, 0.155734081606032, -0.000000000000026],
+                            [-0.000000000000004, 0.000000000000018, -0.127276678468221]])
+
     assert(np.allclose(psi4_optrot, optrot, 1e-10))

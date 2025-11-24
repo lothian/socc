@@ -21,7 +21,7 @@ class hamiltonian(object):
     m : NumPy array
         Spin-orbital-basis magnetic dipole integrals
     """
-    def __init__(self, ref, Ca, Cb, spin, spat):
+    def __init__(self, ref, Ca, Cb, spin, spat, field_strength=0.0, field_axis=2):
 
         npCa = np.asarray(Ca)
         npCb = np.asarray(Cb)
@@ -101,6 +101,12 @@ class hamiltonian(object):
                     elif pspin == 1 and qspin==1:
                         mu[p,q] = mu_b[pspat,qspat]
             self.mu.append(mu)
+
+        # Add dipole field if requested, but save a clean copy of the unperturbed Fock matrix
+        if field_strength != 0.0:
+            self.V = -field_strength * self.mu[field_axis]
+            self.F0 = self.F.copy()
+            self.F += self.V
 
         # Magnetic dipole integrals: -(e/2 m_e) L (pure imaginary, but stored as real)
         m_ints = mints.ao_angular_momentum()

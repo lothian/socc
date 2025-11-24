@@ -30,15 +30,15 @@ def test_cc3_optrot():
     hbar = socc.cchbar(cc_wfn)
     lambda_wfn = socc.cclambda(cc_wfn, hbar)
     lcc = lambda_wfn.solve_lambda(e_conv, r_conv)
-    epsi4 = -0.097663033465501
-    lpsi4 = -0.095210691156924
+    epsi4 = -0.097663033394620
+    lpsi4 = -0.095210691090877
     assert (abs(epsi4 - ecc) < 1e-11)
     assert (abs(lpsi4 - lcc) < 1e-11)
     ccresp = socc.ccresponse(cc_wfn, lambda_wfn)
     omega = 0.077357 # 589 nm
     optrot = ccresp.optrot(omega)
 
-    dalton_optrot = np.array([[ 0.124157,  0.000000,  0.000000],
-                              [ 0.000000, -0.012797,  0.000000],
+    dalton_optrot = np.array([[-0.012797,  0.000000,  0.000000],
+                              [ 0.000000,  0.124157,  0.000000],
                               [ 0.000000,  0.000000, -0.113186]])
     assert(np.allclose(np.diag(dalton_optrot), np.diag(optrot), 1e-4, 1e-5))
