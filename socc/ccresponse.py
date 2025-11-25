@@ -278,21 +278,25 @@ class ccresponse(object):
 
         polar = [polar_LCX, polar_HXY, polar_LHX1Y1, polar_LHX2Y2, polar_LHX1Y2, polar_LHY1X2]
 
-        if self.ccwfn.model == 'CC3' and self.ccwfn.store_triples is True:
-            #<0|L2[C,X3]|0> + <0|L3[C^,X3]|0> + <0|L3[[C,X1],T3]|0> + <0|L3[[C,X2],T2]|0>
-            polar_LCX_CC3 = self.LCX_CC3(A, X_B)
-            polar_LCX_CC3 += self.LCX_CC3(B, X_A)
+        if self.ccwfn.model == 'CC3':
+            if self.ccwfn.store_triples is True:
+                #<0|L2[C,X3]|0> + <0|L3[C^,X3]|0> + <0|L3[[C,X1],T3]|0> + <0|L3[[C,X2],T2]|0>
+                polar_LCX_CC3 = self.LCX_CC3(A, X_B)
+                polar_LCX_CC3 += self.LCX_CC3(B, X_A)
 
-            #<0|L2[[H,X1],Y3]|0>
-            polar_L2HX1Y3 = self.L2HX1Y3_CC3(X_A, X_B)
-            polar_L2HX1Y3 += self.L2HX1Y3_CC3(X_B, X_A)
+                #<0|L2[[H,X1],Y3]|0>
+                polar_L2HX1Y3 = self.L2HX1Y3_CC3(X_A, X_B)
+                polar_L2HX1Y3 += self.L2HX1Y3_CC3(X_B, X_A)
 
-            #<0|L3[[H^,X1],Y2]|0>
-            polar_L3HX1Y2 = self.L3HX1Y2_CC3(X_A, X_B)
-            polar_L3HX1Y2 += self.L3HX1Y2_CC3(X_B, X_A)
+                #<0|L3[[H^,X1],Y2]|0>
+                polar_L3HX1Y2 = self.L3HX1Y2_CC3(X_A, X_B)
+                polar_L3HX1Y2 += self.L3HX1Y2_CC3(X_B, X_A)
 
-            #<0|L3[[[H^,X1],Y1],T2]|0>
-            polar_L3HX1Y1T2 = self.L3HX1Y1T2_CC3(X_A, X_B)
+                #<0|L3[[[H^,X1],Y1],T2]|0>
+                polar_L3HX1Y1T2 = self.L3HX1Y1T2_CC3(X_A, X_B)
+
+            else:
+                raise Exception("Batched triples not yet coded for linear response function.")
 
             polar += [polar_LCX_CC3, polar_L2HX1Y3, polar_L3HX1Y2, polar_L3HX1Y1T2]
 
