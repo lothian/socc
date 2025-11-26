@@ -6,7 +6,7 @@ import numpy as np
 import time
 from opt_einsum import contract
 from .utils import helper_diis, print_wfn, permute_triples
-from .cctriples import t3c_ijk, t3c_abc
+from .cctriples import t3c_ijk, t3c_abc, l3_ijk, X3_ijk, X3_abc
 
 class ccresponse(object):
     """
@@ -252,9 +252,6 @@ class ccresponse(object):
 
         o = self.ccwfn.o
         v = self.ccwfn.v
-        l1 = self.cclambda.l1
-        l2 = self.cclambda.l2
-        hbar = self.hbar
         ERI = self.H.ERI
 
         #<0|(1+L) [ABAR, X_B]|0>
@@ -262,7 +259,7 @@ class ccresponse(object):
         polar_LCX += self.LCX(B, X_A)
 
         #<0|[[HBAR, X1_A], X1_B]|0>
-        polar_HXY = contract('ijab,ia,jb->', ERI[o,o,v,v], X_A[0], X_B[0])
+        polar_HXY = contract('ijab,ia,jb->', ERI[o,o,v,v], X_A[1], X_B[1])
 
         #<0|L[[HBAR, X1_A], X1_B]|0>
         polar_LHX1Y1 = self.LHX1Y1(X_A, X_B)
@@ -296,7 +293,42 @@ class ccresponse(object):
                 polar_L3HX1Y1T2 = self.L3HX1Y1T2_CC3(X_A, X_B)
 
             else:
-                raise Exception("Batched triples not yet coded for linear response function.")
+                t1 = self.ccwfn.t1
+                t2 = self.ccwfn.t2
+                l1 = self.cclambda.l1
+                l2 = self.cclambda.l2
+                F = self.ccwfn.H.F
+
+                omega_A = X_A[0]
+                omega_B = X_A[0]
+
+                Zvvvo_A, Zovoo_A = CC3_linresp_intermediates(A, t1, t2, X_A[1], ERI)
+                Zvvvo_B, Zovoo_B = CC3_linresp_intermediates(B, t1, t2, X_B[1], ERI)
+
+                Fov = self.hbar.Hov
+                Wvovv = self.hbar.Hvovv
+                Wooov = self.hbar.Hooov
+                Woooo = self.ccwfn.build_Woooo_CC3(o, v, ERI, t1)
+                Wvvvo = self.ccwfn.build_Wvvvo_CC3(o, v, ERI, t1)
+                Wovoo = self.ccwfn.build_Wovoo_CC3(o, v, ERI, t1, Woooo)
+
+                no = self.ccwfn.no
+                for i in range(no):
+                    for j in range(no):
+                        for k in range(no):
+                            X3_A = X3_ijk(o, v, i, j, k, t2, F, A, Wvvvo, Wovoo, Zvvvo_A, Zovoo_A, omega_A)
+                            X3_B = X3_ijk(o, v, i, j, k, t2, F, B, Wvvvo, Wovoo, Zvvvo_B, Zovoo_B, omega_B)
+                            l3 = l3_ijk(o, v, i, j, k, l1, l2, F, Fov, ERI[o,o,v,v], Wvovv, Wooov)
+                            t3 = t3c_ijk(o, v, i, j, k, t2, F, Wvvvo, Wovoo)
+
+                nv = self.ccwfn.nv
+                for a in range(nv):
+                    for b in range(nv):
+                        for c in range(nv):
+                            X3_A = X3_abc(o, v, a, b, c, t2, F, A, Wvvvo, Wovoo, omega_A)
+                            X3_B = X3_abc(o, v, a, b, c, t2, F, B, Wvvvo, Wovoo, omega_B)
+                            l3 = l3_abc(o, v, a, b, c, l1, l2, F, Fov, ERI[o,o,v,v], Wvovv, Wooov)
+                            t3 = t3c_abc(o, v, a, b, c, t2, F, Wvvvo, Wovoo)
 
             polar += [polar_LCX_CC3, polar_L2HX1Y3, polar_L3HX1Y2, polar_L3HX1Y1T2]
 
@@ -309,8 +341,8 @@ class ccresponse(object):
         l1 = self.cclambda.l1
         l2 = self.cclambda.l2
 
-        X1 = X[0]
-        X2 = X[1]
+        X1 = X[1]
+        X2 = X[2]
 
         polar = contract('ia,ia->', pert.Aov, X1) # diagram 1
 
@@ -338,8 +370,8 @@ class ccresponse(object):
         hbar = self.hbar
         ERI = self.H.ERI
 
-        X1 = X[0]
-        Y1 = Y[0]
+        X1 = X[1]
+        Y1 = Y[1]
 
         tau = contract('ia,jb->ijab', X1, Y1) + contract('ia,jb->ijab', Y1, X1)
 
@@ -368,8 +400,8 @@ class ccresponse(object):
         l2 = self.cclambda.l2
         ERI = self.H.ERI
 
-        X2 = X[1]
-        Y2 = Y[1]
+        X2 = X[2]
+        Y2 = Y[2]
 
         Zovvo = contract('mnef,njfb->mbej', ERI[o,o,v,v], Y2)
         Zoooo_A = (1/4) * contract('mnef,ijef->mnij', ERI[o,o,v,v], X2)
@@ -400,8 +432,8 @@ class ccresponse(object):
         hbar = self.hbar
         ERI = self.H.ERI
 
-        X1 = X[0]
-        Y2 = Y[1]
+        X1 = X[1]
+        Y2 = Y[2]
 
         Zov = contract('mnef,me->nf', ERI[o,o,v,v], X1)
         Zvv = (-1/2) * contract('mnef,mnaf->ea', ERI[o,o,v,v], Y2)
@@ -438,42 +470,38 @@ class ccresponse(object):
 
         t2 = self.ccwfn.t2
         l2 = self.cclambda.l2
-        X1 = X[0]
-        X2 = X[1]
+        X1 = X[1]
+        X2 = X[2]
 
-        if self.ccwfn.store_triples is True:
-            t3 = self.ccwfn.t3
-            l3 = self.cclambda.l3
-            X3 = X[2]
+        t3 = self.ccwfn.t3
+        l3 = self.cclambda.l3
+        X3 = X[3]
 
-            # <0|L2[C,X3]|0>
-            tmp = (1/4) * contract('ijab,ijkabc->kc', l2, X3)
-            polar_L2_C_X3 = contract('kc,kc->', tmp, pert.Aov)
+        # <0|L2[C,X3]|0>
+        tmp = (1/4) * contract('ijab,ijkabc->kc', l2, X3)
+        polar_L2_C_X3 = contract('kc,kc->', tmp, pert.Aov)
 
-            # <0|L3[C^,X3]|0>
-            tmp = contract('ijkabc,ijkabe->ce', l3, X3)
-            polar_L3_C_X3 = (1/12) * contract('ce,ce->', tmp, pert.Avv)
-            tmp = contract('ijkabc,ijmabc->mk', l3, X3)
-            polar_L3_C_X3 -= (1/12) * contract('mk,mk->', tmp, pert.Aoo)
+        # <0|L3[C^,X3]|0>
+        tmp = contract('ijkabc,ijkabe->ce', l3, X3)
+        polar_L3_C_X3 = (1/12) * contract('ce,ce->', tmp, pert.Avv)
+        tmp = contract('ijkabc,ijmabc->mk', l3, X3)
+        polar_L3_C_X3 -= (1/12) * contract('mk,mk->', tmp, pert.Aoo)
 
-            # <0|L3[[C,X1],T3]|0>
-            tmp1 = contract('mc,me->ce', X1, pert.Aov)
-            tmp2 = -(1/12) * contract('ijkabc,ijkabe->ce', l3, t3)
-            polar_L3_C_X1_T3 = contract('ce,ce->', tmp1, tmp2)
-            tmp1 = contract('ke,me->mk', X1, pert.Aov)
-            tmp2 = -(1/12) * contract('ijkabc,ijmabc->mk', l3, t3)
-            polar_L3_C_X1_T3 += contract('mk,mk->', tmp1, tmp2)
+        # <0|L3[[C,X1],T3]|0>
+        tmp1 = contract('mc,me->ce', X1, pert.Aov)
+        tmp2 = -(1/12) * contract('ijkabc,ijkabe->ce', l3, t3)
+        polar_L3_C_X1_T3 = contract('ce,ce->', tmp1, tmp2)
+        tmp1 = contract('ke,me->mk', X1, pert.Aov)
+        tmp2 = -(1/12) * contract('ijkabc,ijmabc->mk', l3, t3)
+        polar_L3_C_X1_T3 += contract('mk,mk->', tmp1, tmp2)
 
-            # <0|L3[[C,X2],T2]|0>
-            tmp = (1/2) * contract('ijkabc,mkbc->ijam', l3, t2)
-            tmp = -(1/2) * contract('ijam,ijae->me', tmp, X2)
-            polar_L3_C_X2_T2 = contract('me,me->', tmp, pert.Aov)
-            tmp = (1/2) * contract('ijkabc,imab->jkcm', l3, X2)
-            tmp = -(1/2) * contract('jkcm,jkec->me', tmp, t2)
-            polar_L3_C_X2_T2 += contract('me,me->', tmp, pert.Aov)
-
-        else:
-            raise Exception("Batch triples not yet complete in CC3 response...")
+        # <0|L3[[C,X2],T2]|0>
+        tmp = (1/2) * contract('ijkabc,mkbc->ijam', l3, t2)
+        tmp = -(1/2) * contract('ijam,ijae->me', tmp, X2)
+        polar_L3_C_X2_T2 = contract('me,me->', tmp, pert.Aov)
+        tmp = (1/2) * contract('ijkabc,imab->jkcm', l3, X2)
+        tmp = -(1/2) * contract('jkcm,jkec->me', tmp, t2)
+        polar_L3_C_X2_T2 += contract('me,me->', tmp, pert.Aov)
 
         polar_LCX_CC3 = polar_L2_C_X3 + polar_L3_C_X3 + polar_L3_C_X1_T3 + polar_L3_C_X2_T2
 
@@ -486,8 +514,8 @@ class ccresponse(object):
 
         ERI = self.H.ERI
         l2 = self.cclambda.l2
-        X1 = X[0]
-        Y3 = Y[2]
+        X1 = X[1]
+        Y3 = Y[3]
 
         tmp = contract('me,mnef->nf', X1, ERI[o,o,v,v])
         tmp = contract('nijfab,nf->ijab', Y3, tmp)
@@ -516,8 +544,8 @@ class ccresponse(object):
         Wvvvv = self.cclambda.build_Wvvvv_CC3(o, v, ERI, t1)
         Wovvo = self.cclambda.build_Wovvo_CC3(o, v, ERI, t1)
 
-        X1 = X[0]
-        Y2 = Y[1]
+        X1 = X[1]
+        Y2 = Y[2]
 
         tmp = contract('ie,abef->abif', X1, Wvvvv)
         tmp = contract('ijkabc,abif->jkfc', l3, tmp)
@@ -550,8 +578,8 @@ class ccresponse(object):
         Wooov = self.ccwfn.build_Wooov_CC3(o, v, ERI, t1)
         Wvovv = self.ccwfn.build_Wvovv_CC3(o, v, ERI, t1)
 
-        X1 = X[0]
-        Y1 = Y[0]
+        X1 = X[1]
+        Y1 = Y[1]
 
         tau = contract('ia,jb->ijab', X1, Y1) + contract('jb,ia->ijab', X1, Y1)
 
@@ -645,9 +673,9 @@ class ccresponse(object):
                 print_wfn(self.X1, self.X2)
 
                 if self.ccwfn.model == 'CC3' and store_triples is True:
-                    return [self.X1, self.X2, self.X3], pseudo
+                    return [omega, self.X1, self.X2, self.X3], pseudo
                 else:
-                    return [self.X1, self.X2], pseudo
+                    return [omega, self.X1, self.X2], pseudo
 
             diis.add_error_vector(self.X1, self.X2)
             if niter >= start_diis:
@@ -776,14 +804,11 @@ class ccresponse(object):
                     denom += omega
                     x3 = x3/denom
 
-                    # <mu3|[[ABAR,T2],T2]|0> --> X3
-                    x3 += t3c_ijk(o, v, i, j, k, t2, F, Zvvvo, Zovoo, omega)
+                    # <mu3|[[ABAR,T2],T2]|0> + <mu3|[[H^,T2,X1]|0> --> X3
+                    x3 += t3c_ijk(o, v, i, j, k, t2, F, Zvvvo+Zbcdk, Zovoo+Zlcjk, omega)
 
                     # <mu3|[H^,X2]|0> --> X3
                     x3 += t3c_ijk(o, v, i, j, k, X2, F, Wvvvo, Wovoo, omega)
-
-                    # <mu3|[[H^,T2,X1]|0> --> X3
-                    x3 += t3c_ijk(o, v, i, j, k, t2, F, Zbcdk, Zlcjk, omega)
 
                     z1[i] += (1/4) * contract('abc,bc->a', x3, ERI[j,k,v,v])
                     z2[i,j] += contract('abc,c->ab', x3, hbar.Hov[k])
@@ -893,6 +918,29 @@ class ccresponse(object):
 
         return z1, z2
 
+
+    # Compute CC3-related intermediates needed for build X3 for the linear response function
+    # This function is used by the linear response code, even though these intermediates 
+    # are also needed for computing the perturbed X3 amplitudes.
+    def CC3_linresp_intermediates(self, pert, t1, t2, X1, ERI):
+
+        Woooo = self.ccwfn.build_Woooo_CC3(o, v, ERI, t1)
+        Wvvvv = self.cclambda.build_Wvvvv_CC3(o, v, ERI, t1)
+        Wovvo = self.cclambda.build_Wovvo_CC3(o, v, ERI, t1)
+
+        Zvvvo = -(1/2) * contract('ld,lkbc->bcdk', pert.Aov, t2)
+        Zvovv += contract('ke,bcde->bcdk', X1, Wvvvv)
+        tmp = -contract('lb,lcdk->bcdk', X1, Wovvo)
+        Zvovv += tmp - tmp.swapaxes(0,1)
+
+        Zovoo = (1/2) * contract('ld,jkdc->lcjk', pert.Aov, t2)
+        Zovoo -= contract('mc,lmjk->lcjk', X1, Woooo)
+        tmp = contract('jd,lcdk->lcjk', X1, Wovvo)
+        Zovoo += tmp - tmp.swapaxes(2,3)
+
+        return Zvvvo, Zovoo
+
+
     def pertcheck(self, omega, e_conv=1e-13, r_conv=1e-13, maxiter=200, max_diis=8, start_diis=1):
         """
         Build first-order perturbed wave functions for all available perturbations and return a dict of their converged pseudoresponse values.  Primarily for testing purposes.
@@ -967,7 +1015,7 @@ class ccresponse(object):
             X_key = pertkey + "_" + f"{omega:0.6f}"
             print("Solving right-hand perturbed wave function for %s:" % (X_key))
             X[X_key], polar = self.solve_right(self.pertbar[pertkey], omega, e_conv, r_conv, maxiter, max_diis, start_diis)
-#            check[X_key] = polar
+            check[X_key] = polar
 #            if (omega != 0.0):
 #                X_key = pertkey + "_" + f"{-omega:0.6f}"
 #                print("Solving right-hand perturbed wave function for %s:" % (X_key))
