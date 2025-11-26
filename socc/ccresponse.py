@@ -312,6 +312,11 @@ class ccresponse(object):
                 Wvvvo = self.ccwfn.build_Wvvvo_CC3(o, v, ERI, t1)
                 Wovoo = self.ccwfn.build_Wovoo_CC3(o, v, ERI, t1, Woooo)
 
+                polar_LCX_CC3 = 0.0
+                polar_L2HX1Y2_CC3 = 0.0
+                polar_L3HX1Y2_CC3 = 0.0
+                polar_L3HX1Y1T2_CC3 = 0.0
+
                 no = self.ccwfn.no
                 for i in range(no):
                     for j in range(no):
@@ -321,6 +326,12 @@ class ccresponse(object):
                             l3 = l3_ijk(o, v, i, j, k, l1, l2, F, Fov, ERI[o,o,v,v], Wvovv, Wooov)
                             t3 = t3c_ijk(o, v, i, j, k, t2, F, Wvvvo, Wovoo)
 
+                            # <0|L2[A,X3]|0>
+                            tmp = contract('e,abe->ab', A.Aov[k], X3_B)
+                            polar_LCX_CC3 += (1/4) * contract('ab,ab->', l2[i,j], tmp)
+                            tmp = contract('e,abe->ab', B.Aov[k], X3_A)
+                            polar_LCX_CC3 += (1/4) * contract('ab,ab->', l2[i,j], tmp)
+
                 nv = self.ccwfn.nv
                 for a in range(nv):
                     for b in range(nv):
@@ -329,6 +340,13 @@ class ccresponse(object):
                             X3_B = X3_abc(o, v, a, b, c, t2, F, B, Wvvvo, Wovoo, omega_B)
                             l3 = l3_abc(o, v, a, b, c, l1, l2, F, Fov, ERI[o,o,v,v], Wvovv, Wooov)
                             t3 = t3c_abc(o, v, a, b, c, t2, F, Wvvvo, Wovoo)
+
+                            # <0|L2[A,X3]|0>
+                            tmp = contract('m,ijm->ij', A.Aov[:,c], X3_B)
+                            polar_LCX_CC3 += (1/4) * contract('ij,ij->', l2[:,:,a,b], tmp)
+                            tmp = contract('m,ijm->ij', B.Aov[:,c], X3_A)
+                            polar_LCX_CC3 += (1/4) * contract('ij,ij->', l2[:,:,a,b], tmp)
+
 
             polar += [polar_LCX_CC3, polar_L2HX1Y3, polar_L3HX1Y2, polar_L3HX1Y1T2]
 
