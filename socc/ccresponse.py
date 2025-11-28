@@ -108,12 +108,15 @@ class ccresponse(object):
                 print("LHX2Y2 = ", f"{components[3]:20.15f}")
                 if self.ccwfn.model == 'CC3':
                     print("CC3 Contributions:")
-                    print("LCX       = ", f"{components[6]:20.15f}")
-                    print("L2HX1Y3   = ", f"{components[7]:20.15f}")
-                    print("L3HX1Y2   = ", f"{components[8]:20.15f}")
-                    print("L3HX1Y1T2 = ", f"{components[9]:20.15f}")
+                    print("L2CX3     = ", f"{components[6]:20.15f}")
+                    print("L3CX3     = ", f"{components[7]:20.15f}")
+                    print("L3CX1T3   = ", f"{components[8]:20.15f}")
+                    print("L3CX2T2   = ", f"{components[9]:20.15f}")
+                    print("L2HX1Y3   = ", f"{components[10]:20.15f}")
+                    print("L3HX1Y2   = ", f"{components[11]:20.15f}")
+                    print("L3HX1Y1T2 = ", f"{components[12]:20.15f}")
 
-                polar[alpha,beta] = -1.0 * sum(components)
+                polar[alpha,beta] = -1.0 * np.sum(components)
 
         print(f"{self.ccwfn.model:s} Polarizability Tensor (Length Gauge):")
         print(polar)
@@ -273,7 +276,7 @@ class ccresponse(object):
         #<0|L[[HBAR, X1_B], X2_A]|0>
         polar_LHY1X2 = self.LHX1Y2(X_B, X_A)
 
-        polar = [polar_LCX, polar_HXY, polar_LHX1Y1, polar_LHX2Y2, polar_LHX1Y2, polar_LHY1X2]
+        polar = np.array([polar_LCX, polar_HXY, polar_LHX1Y1, polar_LHX2Y2, polar_LHX1Y2, polar_LHY1X2])
 
         if self.ccwfn.model == 'CC3':
             if self.ccwfn.store_triples is True:
@@ -322,7 +325,10 @@ class ccresponse(object):
                 Zdjab_A = -contract('ld,ljab->djab', X1_A, ERI[o,o,v,v])
                 Zdjab_B = -contract('ld,ljab->djab', X1_B, ERI[o,o,v,v])
 
-                polar_LCX_CC3 = 0.0
+                polar_L2CX3 = 0.0
+                polar_L3CX3 = 0.0
+                polar_L3CX1T3 = 0.0
+                polar_L3CX2T2 = 0.0
                 polar_L2HX1Y3_CC3 = 0.0
                 polar_L3HX1Y2_CC3 = 0.0
                 polar_L3HX1Y1T2_CC3 = 0.0
@@ -340,14 +346,14 @@ class ccresponse(object):
 
                             # <0|L2[A,X3]|0>
                             tmp = contract('e,abe->ab', A.Aov[k], X3_B)
-                            polar_LCX_CC3 += (1/4) * contract('ab,ab->', l2[i,j], tmp)
+                            polar_L2CX3 += (1/4) * contract('ab,ab->', l2[i,j], tmp)
                             tmp = contract('e,abe->ab', B.Aov[k], X3_A)
-                            polar_LCX_CC3 += (1/4) * contract('ab,ab->', l2[i,j], tmp)
+                            polar_L2CX3 += (1/4) * contract('ab,ab->', l2[i,j], tmp)
 
                             # <0|L3[A^,X3]|0>
                             tmp = contract('abe,ce->abc', X3_A, B.Avv)
                             tmp += contract('abe,ce->abc', X3_B, A.Avv)
-                            polar_LCX_CC3 += (1/12) * contract('abc,abc->', tmp, l3)
+                            polar_L3CX3 += (1/12) * contract('abc,abc->', tmp, l3)
                             tmp = -(1/12) * contract('abc,abc->', l3, X3_A)
                             for m in range(no):
                                 Zmk_A[m,k] += tmp; Zmk_B[m,k] += tmp
@@ -377,9 +383,9 @@ class ccresponse(object):
 
                             # <0|L2[A,X3]|0>
                             tmp = contract('m,ijm->ij', A.Aov[:,c], X3_B)
-                            polar_LCX_CC3 += (1/4) * contract('ij,ij->', l2[:,:,a,b], tmp)
+                            polar_L2CX3 += (1/4) * contract('ij,ij->', l2[:,:,a,b], tmp)
                             tmp = contract('m,ijm->ij', B.Aov[:,c], X3_A)
-                            polar_LCX_CC3 += (1/4) * contract('ij,ij->', l2[:,:,a,b], tmp)
+                            polar_L2CX3 += (1/4) * contract('ij,ij->', l2[:,:,a,b], tmp)
 
                             # <0|L3[A^,X3]|0>
                             tmp = (1/12) * contract('ijk,ijk->', l3, X3_A)
@@ -387,7 +393,7 @@ class ccresponse(object):
                                 Zce_A[c,e] += tmp; Zce_B[c,e] += tmp
                             tmp = -contract('ijm,mk->ijk', X3_A, B.Aoo)
                             tmp -= contract('ijm,mk->ijk', X3_B, A.Aoo)
-                            polar_LCX_CC3 += (1/12) * contract('ijk,ijk->', tmp, l3)
+                            polar_L3CX3 += (1/12) * contract('ijk,ijk->', tmp, l3)
 
                             # <0|L2[[H,X1],Y3]|0>
                             tmp = contract('ijk,i->jk', X3_A, Zia_B[:,a])
@@ -402,13 +408,13 @@ class ccresponse(object):
                                 polar_L2HX1Y3 += (1/2) * contract('ik,ik->', tmp, l2[:,:,d,c])
 
                 # Remainder of <0|L3[A^,X3]|0>
-                polar_LCX_CC3 += contract('ce,ce->', Zce_A, B.Avv)
-                polar_LCX_CC3 += contract('ce,ce->', Zce_B, A.Avv)
-                polar_LCX_CC3 += contract('mk,mk->', Zmk_A, B.Aoo)
-                polar_LCX_CC3 += contract('mk,mk->', Zmk_B, A.Aoo)
+                polar_L3CX3 += contract('ce,ce->', Zce_A, B.Avv)
+                polar_L3CX3 += contract('ce,ce->', Zce_B, A.Avv)
+                polar_L3CX3 += contract('mk,mk->', Zmk_A, B.Aoo)
+                polar_L3CX3 += contract('mk,mk->', Zmk_B, A.Aoo)
 
-
-            polar += [polar_LCX_CC3, polar_L2HX1Y3, polar_L3HX1Y2, polar_L3HX1Y1T2]
+            polar = np.append(polar,polar_LCX_CC3)
+            polar = np.append(polar, [polar_L2HX1Y3, polar_L3HX1Y2, polar_L3HX1Y1T2])
 
         return polar
 
@@ -557,33 +563,31 @@ class ccresponse(object):
 
         # <0|L2[C,X3]|0>
         tmp = (1/4) * contract('ijab,ijkabc->kc', l2, X3)
-        polar_L2_C_X3 = contract('kc,kc->', tmp, pert.Aov)
+        polar_L2CX3 = contract('kc,kc->', tmp, pert.Aov)
 
         # <0|L3[C^,X3]|0>
         tmp = contract('ijkabc,ijkabe->ce', l3, X3)
-        polar_L3_C_X3 = (1/12) * contract('ce,ce->', tmp, pert.Avv)
+        polar_L3CX3 = (1/12) * contract('ce,ce->', tmp, pert.Avv)
         tmp = contract('ijkabc,ijmabc->mk', l3, X3)
-        polar_L3_C_X3 -= (1/12) * contract('mk,mk->', tmp, pert.Aoo)
+        polar_L3CX3 -= (1/12) * contract('mk,mk->', tmp, pert.Aoo)
 
         # <0|L3[[C,X1],T3]|0>
         tmp1 = contract('mc,me->ce', X1, pert.Aov)
         tmp2 = -(1/12) * contract('ijkabc,ijkabe->ce', l3, t3)
-        polar_L3_C_X1_T3 = contract('ce,ce->', tmp1, tmp2)
+        polar_L3CX1T3 = contract('ce,ce->', tmp1, tmp2)
         tmp1 = contract('ke,me->mk', X1, pert.Aov)
         tmp2 = -(1/12) * contract('ijkabc,ijmabc->mk', l3, t3)
-        polar_L3_C_X1_T3 += contract('mk,mk->', tmp1, tmp2)
+        polar_L3CX1T3 += contract('mk,mk->', tmp1, tmp2)
 
         # <0|L3[[C,X2],T2]|0>
         tmp = (1/2) * contract('ijkabc,mkbc->ijam', l3, t2)
         tmp = -(1/2) * contract('ijam,ijae->me', tmp, X2)
-        polar_L3_C_X2_T2 = contract('me,me->', tmp, pert.Aov)
+        polar_L3CX2T2 = contract('me,me->', tmp, pert.Aov)
         tmp = (1/2) * contract('ijkabc,imab->jkcm', l3, X2)
         tmp = -(1/2) * contract('jkcm,jkec->me', tmp, t2)
-        polar_L3_C_X2_T2 += contract('me,me->', tmp, pert.Aov)
+        polar_L3CX2T2 += contract('me,me->', tmp, pert.Aov)
 
-        polar_LCX_CC3 = polar_L2_C_X3 + polar_L3_C_X3 + polar_L3_C_X1_T3 + polar_L3_C_X2_T2
-
-        return polar_LCX_CC3
+        return np.array([polar_L2CX3, polar_L3CX3, polar_L3CX1T3, polar_L3CX2T2])
 
 
     def L2HX1Y3_CC3(self, X, Y):
@@ -1007,9 +1011,9 @@ class ccresponse(object):
         Wovvo = self.cclambda.build_Wovvo_CC3(o, v, ERI, t1)
 
         Zvvvo = -(1/2) * contract('ld,lkbc->bcdk', pert.Aov, t2)
-        Zvovv += contract('ke,bcde->bcdk', X1, Wvvvv)
+        Zvvvo += contract('ke,bcde->bcdk', X1, Wvvvv)
         tmp = -contract('lb,lcdk->bcdk', X1, Wovvo)
-        Zvovv += tmp - tmp.swapaxes(0,1)
+        Zvvvo += tmp - tmp.swapaxes(0,1)
 
         Zovoo = (1/2) * contract('ld,jkdc->lcjk', pert.Aov, t2)
         Zovoo -= contract('mc,lmjk->lcjk', X1, Woooo)
@@ -1049,7 +1053,7 @@ class ccresponse(object):
 
         # Electric-dipole operator (length)
         for axis in range(1,2):
-            key = "MU_" + self.cart[axis]
+            key = "MU_" + self.cpolar_LCX_CC3art[axis]
             self.pertbar[key] = pertbar(self.H.mu[axis], self.ccwfn)
 
 #        # Magnetic-dipole operator
