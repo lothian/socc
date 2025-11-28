@@ -67,13 +67,13 @@ class ccresponse(object):
         self.pertbar = {}
 
         # Electric-dipole operator (length)
-        for axis in range(3):
+        for axis in range(2,3):
             key = "MU_" + self.cart[axis]
             self.pertbar[key] = pertbar(self.H.mu[axis], self.ccwfn)
 
         # Build the perturbed wave functions, stored in a dictionary of lists
         X = {}
-        for axis in range(3):
+        for axis in range(2,3):
             # A(w) or A(0)
             pertkey = "MU_" + self.cart[axis]
             X_key = pertkey + "_" + f"{omega:0.6f}"
@@ -88,14 +88,14 @@ class ccresponse(object):
                 X[X_key], polar = self.solve_right(self.pertbar[pertkey], -omega, e_conv, r_conv, maxiter, max_diis, start_diis)
 
         polar = np.zeros((3,3))
-        for alpha in range(3):
+        for alpha in range(2,3):
             pertkey = "MU_" + self.cart[alpha]
             if omega != 0.0:
                 X_key = pertkey + "_" + f"{-omega:0.6f}"
             else:
                 X_key = pertkey + "_" + f"{omega:0.6f}"
             pert_A = self.pertbar[pertkey]; X_A = X[X_key]
-            for beta in range(3):
+            for beta in range(2,3):
                 pertkey = "MU_" + self.cart[beta]
                 X_key = pertkey + "_" + f"{omega:0.6f}"
                 pert_B = self.pertbar[pertkey]; X_B = X[X_key]
