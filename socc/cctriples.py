@@ -135,7 +135,6 @@ def l3_ijk(o, v, i, j, k, l1, l2, F, Fov, Woovv, Wvovv, Wooov, WithDenom=True):
 
 
 def l3_abc(o, v, a, b, c, l1, l2, F, Fov, Woovv, Wvovv, Wooov, WithDenom=True):
-    ijk = contract()
     ijk = contract('ijd,dk->ijk', l2[:,:,a,:], Wvovv[:,:,b,c])
     ijk -= contract('ijd,dk->ijk', l2[:,:,b,:], Wvovv[:,:,a,c])
     ijk -= contract('ijd,dk->ijk', l2[:,:,c,:], Wvovv[:,:,b,a])
@@ -149,7 +148,7 @@ def l3_abc(o, v, a, b, c, l1, l2, F, Fov, Woovv, Wvovv, Wooov, WithDenom=True):
     ijk = contract('i,jk->ijk', l1[:,a], Woovv[:,:,b,c]) + contract('i,jk->ijk', Fov[:,a], l2[:,:,b,c])
     ijk -= contract('i,jk->ijk', l1[:,b], Woovv[:,:,a,c]) + contract('i,jk->ijk', Fov[:,b], l2[:,:,a,c])
     ijk -= contract('i,jk->ijk', l1[:,c], Woovv[:,:,b,a]) + contract('i,jk->ijk', Fov[:,c], l2[:,:,b,a])
-    l3 += abc - abc.swapaxes(0,1) - abc.swapaxes(0,2)
+    l3 += ijk - ijk.swapaxes(0,1) - ijk.swapaxes(0,2)
 
     if WithDenom is True:
         denom = np.zeros_like(l3)
@@ -157,14 +156,13 @@ def l3_abc(o, v, a, b, c, l1, l2, F, Fov, Woovv, Wvovv, Wooov, WithDenom=True):
         vir = np.diag(F)[v]
         denom += occ.reshape(-1,1,1) + occ.reshape(-1,1) + occ
         denom -= vir[a] + vir[b] + vir[c]
-        denom += omega
 
         return l3/denom
     else:
         return l3
 
 
-def X3_ijk(o, v, i, j, k, t2, F, pert, Wvvvo, Wovoo, Zvvvo, Zovoo, omega):
+def X3_ijk(o, v, i, j, k, t2, F, pert, X2, Wvvvo, Wovoo, Zvvvo, Zovoo, omega):
 
     occ = np.diag(F)[o]
     vir = np.diag(F)[v]
