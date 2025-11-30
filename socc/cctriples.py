@@ -52,6 +52,11 @@ def t3c_abc(o, v, a, b, c, t2, F, Wvvvo, Wovoo, omega=0.0, WithDenom=True):
         return t3
 
 
+def t3c_ia(o, v, i, a, t2, F, Wvvvo, Wovoo, omega=0.0, WithDenom=True):
+
+    jkbc = contract('jd,bcdk->jkbc', t2[i,:,a], Wvvvo)
+    jkbc -= contract('jd,bcdk->jkbc', t2[i,:,a], Wvvvo)
+
 def t_viking_ijk(o, v, t1, t2, F, ERI):
 
     x1 = np.zeros_like(t1)
@@ -202,3 +207,10 @@ def X3_abc(o, v, a, b, c, t2, F, pert, Wvvvo, Wovoo, omega):
     x3 = x3/denom
 
     return x3
+
+
+def X3_ia(o, v, i, a, t2, F, pert, X2, Wvvvo, Wovoo, Zvvvo, Zovoo, omega):
+
+    occ = np.diag(F)[o]
+    vir = np.diag(F)[v]
+
