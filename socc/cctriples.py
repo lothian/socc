@@ -209,8 +209,33 @@ def X3_abc(o, v, a, b, c, t2, F, pert, Wvvvo, Wovoo, omega):
     return x3
 
 
-def X3_ia(o, v, i, a, t2, F, pert, X2, Wvvvo, Wovoo, Zvvvo, Zovoo, omega):
+def t3_ab(o, v, a, b, t2, F, Wvvvo, Wovoo, omega=0.0, WithDenom=True):
+
+    ijkc = contract('jkd,cdi->ijkc', t2[:,:,a], Wvvvo[b]) - contract('ilc,ljk->ijkc', t2[:,:,b], Wovoo[:,a])
+    ijkc -= contract('jkd,cdi->ijkc', t2[:,:,b], Wvvvo[a]) - contract('ilc,ljk->ijkc', t2[:,:,a], Wovoo[:,b])
+    ijkc -= contract('jkcd,di->ijkc', t2, Wvvvo[b,a]) - contract('il,lcjk->ijkc', t2[:,:,b,a], Wovoo)
+    ijkc = ijkc - ijkc.swapaxes(0,1) - ijkc,swapaxes(0,2)
+
+    if WithDenom is True:
+        denom = np.zeros_like(ijkc)
+        occ = np.diag(F)[o]
+        vir = np.diag(F)[v]
+        denom += occ.reshape(-1,1,1) + occ.reshape(-1,1) + occ 
+        denom -= vir[a] - vir[c] + occ[k]
+        denom += omega
+
+        return t3/denom
+    else:
+        return t3
+
+
+def X3_ab(o, v, a, b, t2, F, pert, X2, Wvvvo, Wovoo, Zvvvo, Zovoo, omega):
 
     occ = np.diag(F)[o]
     vir = np.diag(F)[v]
+
+    ijkc = contract('jkd,cdi->ijkc', t2[:,:,a], Wvvvo[b]) - contract('ilc,ljk->ijkc', t2[:,:,b], Wovoo[:,a])
+    ijkc -= contract('jkd,cdi->ijkc', t2[:,:,b], Wvvvo[a]) - contract('ilc,ljk->ijkc', t2[:,:,a], Wovoo[:,b])
+    ijkc -= contract('jkcd,di->ijkc', t2, Wvvvo[b,a]) - contract('il,lcjk->ijkc', t2[:,:,b,a], Wovoo)
+    ijkc = ijkc - ijkc.swapaxes(0,1) - ijkc,swapaxes(0,2)
 
