@@ -10,7 +10,7 @@ import numpy as np
 import time
 from opt_einsum import contract
 from .utils import helper_diis, print_wfn, permute_triples
-from .cctriples import t3c_ijk, l3_ijk
+from .cctriples import t3_ijk, l3_ijk
 
 
 class cclambda(object):
@@ -214,7 +214,7 @@ class cclambda(object):
             for i in range(no):
                 for j in range(no):
                     for k in range(no):
-                        t3 = t3c_ijk(o, v, i, j, k, t2, F, Wvvvo, Wovoo)
+                        t3 = t3_ijk(o, v, i, j, k, t2, F, Wvvvo, Wovoo)
                         Zijal[i,j] -= (1/2) * contract('abc,lbc->al', t3, ERI[o,k,v,v])
                         Ziabd[i] -= (1/2) * contract('abc,dc->abd', t3, ERI[j,k,v,v])
 
@@ -232,7 +232,7 @@ class cclambda(object):
         for i in range(no):
             for j in range(no):
                 for k in range(no):
-                    t3 = t3c_ijk(o, v, i, j, k, t2, F, Wvvvo, Wovoo)
+                    t3 = t3_ijk(o, v, i, j, k, t2, F, Wvvvo, Wovoo)
                     Zia[i] += (1/4) * contract('abc,bc->a', t3, l2[j,k])
 
         # <0|L3 [[H^,T2],nu1]|0> --> L1

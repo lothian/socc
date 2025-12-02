@@ -6,7 +6,7 @@ import numpy as np
 import time
 from opt_einsum import contract
 from .utils import helper_diis, print_wfn, permute_triples
-from .cctriples import t3c_ijk, t3c_abc, l3_ijk, l3_abc, X3_ijk, X3_abc
+from .cctriples import t3_ijk, t3_abc, l3_ijk, l3_abc, X3_ijk, X3_abc
 
 class ccresponse(object):
     """
@@ -344,7 +344,7 @@ class ccresponse(object):
                             X3_A = X3_ijk(o, v, i, j, k, t2, F, A, X2_A, Wvvvo, Wovoo, Zvvvo_A, Zovoo_A, omega_A)
                             X3_B = X3_ijk(o, v, i, j, k, t2, F, B, X2_B, Wvvvo, Wovoo, Zvvvo_B, Zovoo_B, omega_B)
                             l3 = l3_ijk(o, v, i, j, k, l1, l2, F, Fov, ERI[o,o,v,v], Wvovv, Wooov)
-                            t3 = t3c_ijk(o, v, i, j, k, t2, F, Wvvvo, Wovoo)
+                            t3 = t3_ijk(o, v, i, j, k, t2, F, Wvvvo, Wovoo)
 
                             # <0|L2[A,X3]|0>
                             tmp = contract('e,abe->ab', A.Aov[k], X3_B)
@@ -378,7 +378,7 @@ class ccresponse(object):
                             X3_A = X3_abc(o, v, a, b, c, t2, F, A, Wvvvo, Wovoo, omega_A)
                             X3_B = X3_abc(o, v, a, b, c, t2, F, B, Wvvvo, Wovoo, omega_B)
                             l3 = l3_abc(o, v, a, b, c, l1, l2, F, Fov, ERI[o,o,v,v], Wvovv, Wooov)
-                            t3 = t3c_abc(o, v, a, b, c, t2, F, Wvvvo, Wovoo)
+                            t3 = t3_abc(o, v, a, b, c, t2, F, Wvvvo, Wovoo)
 
                             # <0|L2[A,X3]|0>
                             tmp = contract('m,ijm->ij', A.Aov[:,c], X3_B)
@@ -827,7 +827,7 @@ class ccresponse(object):
         for i in range(no):
             for j in range(no):
                 for k in range(no):
-                    t3 = t3c_ijk(o, v, i, j, k, t2, F, Wvvvo, Wovoo)
+                    t3 = t3_ijk(o, v, i, j, k, t2, F, Wvvvo, Wovoo)
                     Yoovo[i,j] -= (1/2) * contract('abc,lbc->al', t3, ERI[o,k,v,v])
                     Yovvv[i] -= (1/2) * contract('abc,dc->abd', t3, ERI[j,k,v,v])
 
@@ -867,7 +867,7 @@ class ccresponse(object):
             for j in range(no):
                 for k in range(no):
                     # <mu2|[[H^,T3],X1]|0> --> X2 (remaining term)
-                    t3 = t3c_ijk(o, v, i, j, k, t2, F, Wvvvo, Wovoo)
+                    t3 = t3_ijk(o, v, i, j, k, t2, F, Wvvvo, Wovoo)
                     z2[i,j] += contract('abc,c->ab', t3, Yov[k])
 
                     # <mu3|[ABAR,T3]|0> --> X3
@@ -880,10 +880,10 @@ class ccresponse(object):
                     x3 = x3/denom
 
                     # <mu3|[[ABAR,T2],T2]|0> + <mu3|[[H^,T2,X1]|0> --> X3
-                    x3 += t3c_ijk(o, v, i, j, k, t2, F, Zvvvo+Zbcdk, Zovoo+Zlcjk, omega)
+                    x3 += t3_ijk(o, v, i, j, k, t2, F, Zvvvo+Zbcdk, Zovoo+Zlcjk, omega)
 
                     # <mu3|[H^,X2]|0> --> X3
-                    x3 += t3c_ijk(o, v, i, j, k, X2, F, Wvvvo, Wovoo, omega)
+                    x3 += t3_ijk(o, v, i, j, k, X2, F, Wvvvo, Wovoo, omega)
 
                     z1[i] += (1/4) * contract('abc,bc->a', x3, ERI[j,k,v,v])
                     z2[i,j] += contract('abc,c->ab', x3, hbar.Hov[k])
@@ -900,7 +900,7 @@ class ccresponse(object):
             for b in range(nv):
                 for c in range(nv):
                     # <mu3|[ABAR,T3]|0> --> X3
-                    t3 = t3c_abc(o, v, a, b, c, t2, F, Wvvvo, Wovoo)
+                    t3 = t3_abc(o, v, a, b, c, t2, F, Wvvvo, Wovoo)
                     tmp = -contract('ijk,kl->ijl', t3, pert.Aoo)
                     x3 = tmp - tmp.swapaxes(0,2) - tmp.swapaxes(1,2)
                     denom = np.zeros_like(t3)
@@ -1220,6 +1220,6 @@ class pertbar(object):
                 for i in range(no):
                     for j in range(no):
                         for k in range(no):
-                            t3 = t3c_ijk(o, v, i, j, k, t2, F, Wvvvo, Wovoo)
+                            t3 = t3_ijk(o, v, i, j, k, t2, F, Wvvvo, Wovoo)
                             self.Avvoo[i,j] += contract('c,abc->ab', pert[k,v], t3)
 
