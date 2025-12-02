@@ -220,10 +220,10 @@ class ccwfn(object):
                 print("E(REF)  = %20.15f" % self.eref)
                 if (self.model == 'CCSD(T)'):
                     print("E(CCSD) = %20.15f" % ecc)
-                    if t_alg == 'IJK':
+                    if self.t_alg == 'IJK':
                         print("Using IJK-driven algorithm.")
                         et = t_viking_ijk(o, v, self.t1, self.t2, F, ERI)
-                    elif t_alg == 'ABC':
+                    elif self.t_alg == 'ABC':
                         print("Using ABC-driven algorithm.")
                         et = t_viking_abc(o, v, self.t1, self.t2, F, ERI)
                     else:
