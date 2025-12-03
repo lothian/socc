@@ -236,7 +236,7 @@ def t3_ab(o, v, a, b, t2, F, Wvvvo, Wovoo, omega=0.0, WithDenom=True):
     ijkc = contract('jkd,cdi->ijkc', t2[:,:,a], Wvvvo[b]) - contract('ilc,ljk->ijkc', t2[:,:,b], Wovoo[:,a])
     ijkc -= contract('jkd,cdi->ijkc', t2[:,:,b], Wvvvo[a]) - contract('ilc,ljk->ijkc', t2[:,:,a], Wovoo[:,b])
     ijkc -= contract('jkcd,di->ijkc', t2, Wvvvo[b,a]) - contract('il,lcjk->ijkc', t2[:,:,b,a], Wovoo)
-    ijkc = ijkc - ijkc.swapaxes(0,1) - ijkc.swapaxes(0,2)
+    t3 = ijkc - ijkc.swapaxes(0,1) - ijkc.swapaxes(0,2)
 
     if WithDenom is True:
         denom = np.zeros_like(ijkc)
@@ -246,33 +246,28 @@ def t3_ab(o, v, a, b, t2, F, Wvvvo, Wovoo, omega=0.0, WithDenom=True):
         denom -= vir[a] + vir[b]
         denom += omega
 
-        return ijkc/denom
+        return t3/denom
     else:
-        return ijkc
+        return t3
 
 
 def l3_ab(o, v, a, b, l1, l2, F, Fov, Woovv, Wvovv, Wooov, WithDenom=True):
-    ijkc = contract('ijd,dk->ijk', l2[:,:,a,:], Wvovv[:,:,b,c])
-    ijkc -= contract('ijd,dk->ijk', l2[:,:,b,:], Wvovv[:,:,a,c])
-    ijkc -= contract('ijd,dk->ijk', l2[:,:,c,:], Wvovv[:,:,b,a])
-    l3 = ijk - ijk.swapaxes(0,2) - ijk.swapaxes(1,2)
+    ijkc = contract('i,jkc->ijkc', l1[:,a], Woovv[:,:,b,:]) + contract('i,jkc->ijkc', Fov[:,a], l2[:,:,b,:])
+    ijkc -= contract('i,jkc->ijkc', l1[:,b], Woovv[:,:,a,:]) + contract('i,jkc->ijkc', Fov[:,b], l2[:,:,a,:])
+    ijkc -= contract('ic,jk->ijkc', l1, Woovv[:,:,b,a]) + contract('ic,jk->ijkc', Fov, l2[:,:,b,a])
 
-    ijkc = contract('il,jkl->ijk', l2[:,:,a,b], Wooov[:,:,:,c])
-    ijkc -= contract('il,jkl->ijk', l2[:,:,c,b], Wooov[:,:,:,a])
-    ijkc -= contract('il,jkl->ijk', l2[:,:,a,c], Wooov[:,:,:,b])
-    l3 -= ijk - ijk.swapaxes(0,1) - ijk.swapaxes(0,2)
+    ijkc += contract('jkd,dic->ijkc', l2[:,:,a,:], Wvovv[:,:,b,:]) - contract('ilc,jkl->ijkc', l2[:,:,b,:], Wooov[:,:,:,a])
+    ijkc -= contract('jkd,dic->ijkc', l2[:,:,b,:], Wvovv[:,:,a,:]) - contract('ilc,jkl->ijkc', l2[:,:,a,:], Wooov[:,:,:,b])
+    ijkc -= contract('jkcd,di->ijkc', l2, Wvovv[:,:,b,a]) - contract('il,jklc->ijkc', l2[:,:,b,a], Wooov)
 
-    ijk = contract('i,jk->ijk', l1[:,a], Woovv[:,:,b,c]) + contract('i,jk->ijk', Fov[:,a], l2[:,:,b,c])
-    ijk -= contract('i,jk->ijk', l1[:,b], Woovv[:,:,a,c]) + contract('i,jk->ijk', Fov[:,b], l2[:,:,a,c])
-    ijk -= contract('i,jk->ijk', l1[:,c], Woovv[:,:,b,a]) + contract('i,jk->ijk', Fov[:,c], l2[:,:,b,a])
-    l3 += ijk - ijk.swapaxes(0,1) - ijk.swapaxes(0,2)
+    l3 = ijkc - ijkc.swapaxes(0,1) - ijkc.swapaxes(0,2)
 
     if WithDenom is True:
         denom = np.zeros_like(l3)
         occ = np.diag(F)[o]
         vir = np.diag(F)[v]
-        denom += occ.reshape(-1,1,1) + occ.reshape(-1,1) + occ
-        denom -= vir[a] + vir[b] + vir[c]
+        denom += occ.reshape(-1,1,1,1) + occ.reshape(-1,1,1) + occ.reshape(-1,1) - vir
+        denom -= vir[a] + vir[b]
 
         return l3/denom
     else:

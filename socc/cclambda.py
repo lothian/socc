@@ -10,7 +10,7 @@ import numpy as np
 import time
 from opt_einsum import contract
 from .utils import helper_diis, print_wfn, permute_triples
-from .cctriples import t3_ijk, l3_ijk
+from .cctriples import t3_ijk, l3_ijk, t3_ab, l3_ab
 
 
 class cclambda(object):
@@ -117,7 +117,7 @@ class cclambda(object):
             Wvvvo = self.ccwfn.build_Wvvvo_CC3(o, v, ERI, t1)
             Wvvvv = self.build_Wvvvv_CC3(o, v, ERI, t1)
             Wovvo = self.build_Wovvo_CC3(o, v, ERI, t1)
-            Zijal, Ziabd = self.CC3_noniter(o, v, t2, F, ERI, Wvvvo, Wovoo)
+            Zijal, Ziabd = self.CC3_noniter(o, v, t2, F, ERI, Wvvvo, Wovoo, self.ccwfn.t_alg)
 
         for niter in range(1, maxiter+1):
             lecc_last = lecc
@@ -202,7 +202,10 @@ class cclambda(object):
 
     # CC3 intermediates for <0|L2 [[H^,T3],nu1]|0> --> L1
     # These do not depend on L2, so we compute them once before the lambda iterations
-    def CC3_noniter(self, o, v, t2, F, ERI, Wvvvo, Wovoo):
+    def CC3_noniter(self, o, v, t2, F, ERI, Wvvvo, Wovoo, alg='IJK'):
+        no = t2.shape[0]
+        nv = t2.shape[2]
+
         Zijal = np.zeros_like(ERI[o,o,v,o])
         Ziabd = np.zeros_like(ERI[o,v,v,v])
 
@@ -210,14 +213,21 @@ class cclambda(object):
             t3 = self.ccwfn.t3
             Zijal = -(1/2) * contract('ijkabc,lkbc->ijal', t3, ERI[o,o,v,v])
             Ziabd = -(1/2) * contract('ijkabc,jkdc->iabd', t3, ERI[o,o,v,v])
-        else:
-            no = Zijal.shape[0]
+
+        elif alg == 'IJK':
             for i in range(no):
                 for j in range(no):
                     for k in range(no):
                         t3 = t3_ijk(o, v, i, j, k, t2, F, Wvvvo, Wovoo)
                         Zijal[i,j] -= (1/2) * contract('abc,lbc->al', t3, ERI[o,k,v,v])
                         Ziabd[i] -= (1/2) * contract('abc,dc->abd', t3, ERI[j,k,v,v])
+
+        elif alg == 'AB':
+            for a in range(nv):
+                for b in range(nv):
+                    t3 = t3_ab(o, v, a, b, t2, F, Wvvvo, Wovoo)
+                    Zijal[:,:,a,:] -= (1/2) * contract('ijkc,lkc->ijl', t3, ERI[o,o,b+no,v])
+                    Ziabd[:,a,b,:] -= (1/2) * contract('ijkc,jkdc->id', t3, ERI[o,o,v,v])
 
         return Zijal, Ziabd
 
@@ -228,30 +238,37 @@ class cclambda(object):
         no = l1.shape[0]
         nv = l1.shape[1]
 
+        x2 = np.zeros_like(l2)
+
+        # <0|L2 [[H^,T3],nu1]|0> --> L1
+        Zia = np.zeros_like(l1)
+
+        # <0|L3 [[H^,T2],nu1]|0> --> L1
+        Ziabe = np.zeros((no,nv,nv,nv))
+        Zijam = np.zeros((no,no,nv,no))
+        Zjabd = np.zeros((no,nv,nv,nv))
+        Zijlb = np.zeros((no,no,no,nv))
+
         if alg == 'IJK':
             # <0|L2 [[H^,T3],nu1]|0> --> L1
-            Zia = np.zeros_like(l1)
             for i in range(no):
                 for j in range(no):
                     for k in range(no):
                         t3 = t3_ijk(o, v, i, j, k, t2, F, Wvvvo, Wovoo)
                         Zia[i] += (1/4) * contract('abc,bc->a', t3, l2[j,k])
 
-            # <0|L3 [[H^,T2],nu1]|0> --> L1
-            # <0|L3 [H^,nu2]|0> --> L2
-            Ziabe = np.zeros((no,nv,nv,nv))
-            Zijam = np.zeros((no,no,nv,no))
-            Zjabd = np.zeros((no,nv,nv,nv))
-            Zijlb = np.zeros((no,no,no,nv))
-            x2 = np.zeros_like(l2)
             for i in range(no):
                 for j in range(no):
                     for k in range(no):
                         l3 = l3_ijk(o, v, i, j, k, l1, l2, F, Fov, ERI[o,o,v,v], Wvovv, Wooov)
+
+                        # <0|L3 [[H^,T2],nu1]|0> --> L1
                         Ziabe[i] += (1/2) * contract('abc,ec->abe', l3, t2[j,k])
                         Zijam[i,j] += (1/2) * contract('abc,mbc->am', l3, t2[o,k])
                         Zjabd[j] -= (1/2) * contract('abc,dc->abd', l3, t2[i,k])
                         Zijlb[i,j] -= (1/2) * contract('abc,lac->lb', l3, t2[o,k])
+
+                        # <0|L3 [H^,nu2]|0> --> L2
                         x2[i,j] += (1/2) * contract('abc,bcd->ad', l3, Wvvvo[:,:,:,k])
                         x2[i,j] -= (1/2) * contract('dbc,bca->ad', l3, Wvvvo[:,:,:,k])
                         for l in range(no):
@@ -259,15 +276,40 @@ class cclambda(object):
                             x2[i,l] -= tmp
                             x2[l,i] += tmp
 
-            x1 = contract('ia,lida->ld', Zia, ERI[o,o,v,v])
-            x1 += (1/2) * contract('ijal,ijad->ld', Zijal, l2)
-            x1 += (1/2) * contract('iabd,ilab->ld', Ziabd, l2)
-            x1 += (1/2) * contract('iabe,abde->id', Ziabe, Wvvvv)
-            x1 += (1/2) * contract('ijam,lmij->la', Zijam, Woooo)
-            x1 += contract('jabd,lbdj->la', Zjabd, Wovvo)
-            x1 += contract('ijlb,lbdj->id', Zijlb, Wovvo)
-
         elif alg == 'AB':
+            for a in range(nv):
+                for b in range(nv):
+                    # <0|L2 [[H^,T3],nu1]|0> --> L1
+                    t3 = t3_ab(o, v, a, b, t2, F, Wvvvo, Wovoo)
+                    Zia[:,a] += (1/4) * contract('ijkc,jkc->i', t3, l2[:,:,b,:])
+
+                    l3 = l3_ab(o, v, a, b, l1, l2, F, Fov, ERI[o,o,v,v], Wvovv, Wooov)
+
+                    # <0|L3 [[H^,T2],nu1]|0> --> L1
+                    Ziabe[:,a,b,:] += (1/2) * contract('ijkc,jkec->ie', l3, t2)
+                    Zijam[:,:,a,:] += (1/2) * contract('ijkc,mkc->ijm', l3, t2[:,:,b,:])
+
+                    Zjabd[:,a,b,:] -= (1/2) * contract('ijkc,ikdc->jd', l3, t2)
+                    Zijlb[:,:,:,b] -= (1/2) * contract('ijkc,lkc->ijl', l3, t2[:,:,a,:])
+
+                    # <0|L3 [H^,nu2]|0> --> L2
+                    for d in range(nv):
+                        tmp = (1/2) * contract('ijkc,ck->ij', l3, Wvvvo[b,:,d,:])
+                        x2[:,:,a,d] += tmp
+                        x2[:,:,d,a] -= tmp
+                    x2[:,:,a,b] -= (1/2) * contract('ijkc,lcjk->il', l3, Wovoo)
+                    x2[:,:,a,b] += (1/2) * contract('ljkc,icjk->il', l3, Wovoo)
+
+        # <0|L2 [[H^,T3],nu1]|0> --> L1
+        x1 = contract('ia,lida->ld', Zia, ERI[o,o,v,v])
+        x1 += (1/2) * contract('ijal,ijad->ld', Zijal, l2)
+        x1 += (1/2) * contract('iabd,ilab->ld', Ziabd, l2)
+
+        # <0|L3 [[H^,T2],nu1]|0> --> L1
+        x1 += (1/2) * contract('iabe,abde->id', Ziabe, Wvvvv)
+        x1 += (1/2) * contract('ijam,lmij->la', Zijam, Woooo)
+        x1 -= contract('iabe,lbie->la', Ziabe, Wovvo)
+        x1 += contract('ijlb,lbdj->id', Zijlb, Wovvo)
 
         return x1, x2
 
@@ -291,6 +333,7 @@ class cclambda(object):
         self.l3 = l3
 
         # <0|L2[[H^,T3],nu1]|0> -> L1
+        x1 = np.zeros_like(l1)
         t3 = self.ccwfn.t3
         tmp = (1/4) * contract('ijkabc,jkbc->ia', t3, l2)
         x1 = contract('ia,lida->ld', tmp, ERI[o,o,v,v])
