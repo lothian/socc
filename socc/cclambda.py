@@ -134,7 +134,8 @@ class cclambda(object):
                 if self.ccwfn.store_triples is True:
                     x1, x2 = self.CC3_iter_full(o, v, l1, l2, t2, F, ERI, Fov, Woooo, Wvvvv, Wvvvo, Wovoo, Wvovv, Wooov, Wovvo, Zijal, Ziabd)
                 else:
-                    x1, x2 = self.CC3_iter(o, v, l1, l2, t2, F, ERI, Fov, Woooo, Wvvvv, Wvvvo, Wovoo, Wvovv, Wooov, Wovvo, Zijal, Ziabd)
+                    x1, x2 = self.CC3_iter(o, v, l1, l2, t2, F, ERI, Fov, Woooo, Wvvvv, Wvvvo, Wovoo, Wvovv, Wooov, Wovvo, Zijal, Ziabd,
+                            self.ccwfn.t_alg)
                 r1 += x1; r2 += x2
 
             self.l1 += r1/Dia
@@ -223,47 +224,50 @@ class cclambda(object):
 
     # CC3 intermediates and T3/L3 contributions to L1 and L2 equations
     # These must be computed in every lambda iteration
-    def CC3_iter(self, o, v, l1, l2, t2, F, ERI, Fov, Woooo, Wvvvv, Wvvvo, Wovoo, Wvovv, Wooov, Wovvo, Zijal, Ziabd):
+    def CC3_iter(self, o, v, l1, l2, t2, F, ERI, Fov, Woooo, Wvvvv, Wvvvo, Wovoo, Wvovv, Wooov, Wovvo, Zijal, Ziabd, alg='IJK'):
         no = l1.shape[0]
         nv = l1.shape[1]
 
-        # <0|L2 [[H^,T3],nu1]|0> --> L1
-        Zia = np.zeros_like(l1)
-        for i in range(no):
-            for j in range(no):
-                for k in range(no):
-                    t3 = t3_ijk(o, v, i, j, k, t2, F, Wvvvo, Wovoo)
-                    Zia[i] += (1/4) * contract('abc,bc->a', t3, l2[j,k])
+        if alg == 'IJK':
+            # <0|L2 [[H^,T3],nu1]|0> --> L1
+            Zia = np.zeros_like(l1)
+            for i in range(no):
+                for j in range(no):
+                    for k in range(no):
+                        t3 = t3_ijk(o, v, i, j, k, t2, F, Wvvvo, Wovoo)
+                        Zia[i] += (1/4) * contract('abc,bc->a', t3, l2[j,k])
 
-        # <0|L3 [[H^,T2],nu1]|0> --> L1
-        # <0|L3 [H^,nu2]|0> --> L2
-        Ziabe = np.zeros((no,nv,nv,nv))
-        Zijam = np.zeros((no,no,nv,no))
-        Zjabd = np.zeros((no,nv,nv,nv))
-        Zijlb = np.zeros((no,no,no,nv))
-        x2 = np.zeros_like(l2)
-        for i in range(no):
-            for j in range(no):
-                for k in range(no):
-                    l3 = l3_ijk(o, v, i, j, k, l1, l2, F, Fov, ERI[o,o,v,v], Wvovv, Wooov)
-                    Ziabe[i] += (1/2) * contract('abc,ec->abe', l3, t2[j,k])
-                    Zijam[i,j] += (1/2) * contract('abc,mbc->am', l3, t2[o,k])
-                    Zjabd[j] -= (1/2) * contract('abc,dc->abd', l3, t2[i,k])
-                    Zijlb[i,j] -= (1/2) * contract('abc,lac->lb', l3, t2[o,k])
-                    x2[i,j] += (1/2) * contract('abc,bcd->ad', l3, Wvvvo[:,:,:,k])
-                    x2[i,j] -= (1/2) * contract('dbc,bca->ad', l3, Wvvvo[:,:,:,k])
-                    for l in range(no):
-                        tmp = (1/2) * contract('abc,c->ab', l3, Wovoo[l,:,j,k])
-                        x2[i,l] -= tmp
-                        x2[l,i] += tmp
+            # <0|L3 [[H^,T2],nu1]|0> --> L1
+            # <0|L3 [H^,nu2]|0> --> L2
+            Ziabe = np.zeros((no,nv,nv,nv))
+            Zijam = np.zeros((no,no,nv,no))
+            Zjabd = np.zeros((no,nv,nv,nv))
+            Zijlb = np.zeros((no,no,no,nv))
+            x2 = np.zeros_like(l2)
+            for i in range(no):
+                for j in range(no):
+                    for k in range(no):
+                        l3 = l3_ijk(o, v, i, j, k, l1, l2, F, Fov, ERI[o,o,v,v], Wvovv, Wooov)
+                        Ziabe[i] += (1/2) * contract('abc,ec->abe', l3, t2[j,k])
+                        Zijam[i,j] += (1/2) * contract('abc,mbc->am', l3, t2[o,k])
+                        Zjabd[j] -= (1/2) * contract('abc,dc->abd', l3, t2[i,k])
+                        Zijlb[i,j] -= (1/2) * contract('abc,lac->lb', l3, t2[o,k])
+                        x2[i,j] += (1/2) * contract('abc,bcd->ad', l3, Wvvvo[:,:,:,k])
+                        x2[i,j] -= (1/2) * contract('dbc,bca->ad', l3, Wvvvo[:,:,:,k])
+                        for l in range(no):
+                            tmp = (1/2) * contract('abc,c->ab', l3, Wovoo[l,:,j,k])
+                            x2[i,l] -= tmp
+                            x2[l,i] += tmp
 
-        x1 = contract('ia,lida->ld', Zia, ERI[o,o,v,v])
-        x1 += (1/2) * contract('ijal,ijad->ld', Zijal, l2)
-        x1 += (1/2) * contract('iabd,ilab->ld', Ziabd, l2)
-        x1 += (1/2) * contract('iabe,abde->id', Ziabe, Wvvvv)
-        x1 += (1/2) * contract('ijam,lmij->la', Zijam, Woooo)
-        x1 += contract('jabd,lbdj->la', Zjabd, Wovvo)
-        x1 += contract('ijlb,lbdj->id', Zijlb, Wovvo)
+            x1 = contract('ia,lida->ld', Zia, ERI[o,o,v,v])
+            x1 += (1/2) * contract('ijal,ijad->ld', Zijal, l2)
+            x1 += (1/2) * contract('iabd,ilab->ld', Ziabd, l2)
+            x1 += (1/2) * contract('iabe,abde->id', Ziabe, Wvvvv)
+            x1 += (1/2) * contract('ijam,lmij->la', Zijam, Woooo)
+            x1 += contract('jabd,lbdj->la', Zjabd, Wovvo)
+            x1 += contract('ijlb,lbdj->id', Zijlb, Wovvo)
+
+        elif alg == 'AB':
 
         return x1, x2
 

@@ -181,17 +181,20 @@ class ccwfn(object):
         Dia = self.Dia
         Dijab = self.Dijab
 
-        valid_t_algorithms = ['IJK', 'ABC', 'AB']
-        self.t_alg = kwargs.pop('alg','IJK').upper()
-        if self.t_alg not in valid_t_algorithms:
-            raise Exception("%s is not an allowed (T) algorithm." % (self.t_alg))
-
         self.store_triples = kwargs.pop('store_triples', False)
         if self.store_triples is True:
             print("Triples tensors will be stored in full.")
             self.t3 = np.zeros((no, no, no, nv, nv, nv))
         elif self.field is True and self.model == 'CC3':
             raise Exception("External fields require full storage of triples in CC3 energy calculations.")
+
+        valid_t_algorithms = ['IJK', 'ABC', 'AB']
+        self.t_alg = kwargs.pop('alg','IJK').upper()
+        if self.t_alg not in valid_t_algorithms:
+            raise Exception("%s is not an allowed triples algorithm." % (self.t_alg))
+
+        if self.store_triples is False:
+            print("Will use %s-driven triples algorithm." % (self.t_alg))
 
         ecc = self.cc_energy(o, v, F, ERI, self.t1, self.t2)
         print("CC Iter %3d: CC Ecorr = %.15f  dE = % .5E  MP2" % (0, ecc, -ecc))
@@ -221,13 +224,13 @@ class ccwfn(object):
                 if (self.model == 'CCSD(T)'):
                     print("E(CCSD) = %20.15f" % ecc)
                     if self.t_alg == 'IJK':
-                        print("Using IJK-driven algorithm.")
+                        print("Using IJK-driven algorithm for (T) correction.")
                         et = t_viking_ijk(o, v, self.t1, self.t2, F, ERI)
                     elif self.t_alg == 'ABC':
-                        print("Using ABC-driven algorithm.")
+                        print("Using ABC-driven algorithm for (T) correction.")
                         et = t_viking_abc(o, v, self.t1, self.t2, F, ERI)
                     else:
-                        print("Using AB-driven algorithm.")
+                        print("Using AB-driven algorithm for (T) correction.")
                         et = t_viking_ab(o, v, self.t1, self.t2, F, ERI)
                     print("E(T)    = %20.15f" % et)
                     ecc = ecc + et
@@ -456,10 +459,10 @@ class ccwfn(object):
 
                     x1[a] += (1/4) * contract('ijkc,jkc->i', ijkc, ERI[o,o,b+no,v])
                     x2[a,b] += contract('kc,ijkc->ij', Fme, ijkc)
-                    tmp = -(1/2) * contract('ijkc,jklc->il', ijkc, ERI[o,o,o,v])
+                    tmp = -(1/2) * contract('ijkc,jklc->il', ijkc, Wooov)
                     x2[a,b] += tmp - tmp.swapaxes(0,1)
                     for d in range(nv):
-                        tmp = (1/2) * contract('ijkc,kc->ij', ijkc, ERI[d+no,o,b+no,v])
+                        tmp = (1/2) * contract('ijkc,kc->ij', ijkc, Wvovv[d,:,b,:])
                         x2[a,d] += tmp
                         x2[d,a] -= tmp
 
