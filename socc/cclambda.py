@@ -289,8 +289,8 @@ class cclambda(object):
                     Ziabe[:,a,b,:] += (1/2) * contract('ijkc,jkec->ie', l3, t2)
                     Zijam[:,:,a,:] += (1/2) * contract('ijkc,mkc->ijm', l3, t2[:,:,b,:])
 
-                    Zjabd[:,a,b,:] -= (1/2) * contract('ijkc,ikdc->jd', l3, t2)
-                    Zijlb[:,:,:,b] -= (1/2) * contract('ijkc,lkc->ijl', l3, t2[:,:,a,:])
+#                    Zjabd[:,a,b,:] -= (1/2) * contract('ijkc,ikdc->jd', l3, t2)
+#                    Zijlb[:,:,:,b] -= (1/2) * contract('ijkc,lkc->ijl', l3, t2[:,:,a,:])
 
                     # <0|L3 [H^,nu2]|0> --> L2
                     for d in range(nv):
@@ -308,8 +308,8 @@ class cclambda(object):
         # <0|L3 [[H^,T2],nu1]|0> --> L1
         x1 += (1/2) * contract('iabe,abde->id', Ziabe, Wvvvv)
         x1 += (1/2) * contract('ijam,lmij->la', Zijam, Woooo)
-        x1 -= contract('iabe,lbie->la', Ziabe, Wovvo)
-        x1 += contract('ijlb,lbdj->id', Zijlb, Wovvo)
+        x1 += contract('iabe,lbei->la', Ziabe, Wovvo)
+        x1 += contract('ijam,madj->id', Zijam, Wovvo)
 
         return x1, x2
 
