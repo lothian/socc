@@ -11,7 +11,7 @@ import numpy as np
 from opt_einsum import contract
 from .hamiltonian import hamiltonian
 from .utils import helper_diis, print_wfn, permute_triples
-from .cctriples import t_viking_ijk, t_viking_abc, t_viking_ab, t3_ijk, t3_ab
+from .cctriples import t_viking_ijk, t_viking_abc, t_viking_ab, t_viking_ij, t3_ijk, t3_ab, t3_ij
 import sys
 
 np.set_printoptions(precision=10, linewidth=300, threshold=sys.maxsize, suppress=True)
@@ -188,7 +188,7 @@ class ccwfn(object):
         elif self.field is True and self.model == 'CC3':
             raise Exception("External fields require full storage of triples in CC3 energy calculations.")
 
-        valid_t_algorithms = ['IJK', 'ABC', 'AB']
+        valid_t_algorithms = ['IJK', 'ABC', 'AB', 'IJ']
         self.t_alg = kwargs.pop('alg','IJK').upper()
         if self.t_alg not in valid_t_algorithms:
             raise Exception("%s is not an allowed triples algorithm." % (self.t_alg))
@@ -229,9 +229,12 @@ class ccwfn(object):
                     elif self.t_alg == 'ABC':
                         print("Using ABC-driven algorithm for (T) correction.")
                         et = t_viking_abc(o, v, self.t1, self.t2, F, ERI)
-                    else:
+                    elif self.t_alg == 'AB':
                         print("Using AB-driven algorithm for (T) correction.")
                         et = t_viking_ab(o, v, self.t1, self.t2, F, ERI)
+                    else:
+                        print("Using IJ-driven algorithm for (T) correction.")
+                        et = t_viking_ij(o, v, self.t1, self.t2, F, ERI)
                     print("E(T)    = %20.15f" % et)
                     ecc = ecc + et
                 else:
@@ -467,6 +470,25 @@ class ccwfn(object):
                         x2[d,a] -= tmp
 
             return x1.T, x2.T
+
+        if alg == 'IJ':
+            x1 = np.zeros_like(t1)
+            x2 = np.zeros_like(t2)
+            no = x1.shape[0]
+            for i in range(no):
+                for j in range(no):
+                    t3 = t3_ij(o, v, i, j, t2, F, Wvvvo, Wovoo)
+
+                    x1[i] += (1/4)*contract('kbc,kabc->a', ERI[j,o,v,v], t3)
+                    x2[i,j] += contract('kc,kabc->ab', Fme, t3)
+                    x2[i,j] += (1/2)*contract('dkbc,kabc->ad', Wvovv, t3)
+                    x2[i,j] -= (1/2)*contract('akbc,kdbc->ad', Wvovv, t3)
+                    for l in range(no):
+                        tmp = (1/2)*contract('kc,kabc->ab', Wooov[j,:,l,:], t3)
+                        x2[i,l] -= tmp
+                        x2[l,i] += tmp
+
+            return x1, x2
 
 
     def CC3_full(self, o, v, F, ERI, Fme, t1, t2, V=0):

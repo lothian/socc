@@ -35,6 +35,10 @@ def test_cc3_energy():
     ecc = cc_wfn.solve_cc(e_conv, r_conv, alg='AB')
     assert (abs(epsi4 - ecc) < 1e-11)
 
+    cc_wfn = socc.ccwfn(scf_wfn, model='CC3')
+    ecc = cc_wfn.solve_cc(e_conv, r_conv, alg='IJ')
+    assert (abs(epsi4 - ecc) < 1e-11)
+
     # cc-pVDZ basis set
     psi4.core.clean()
     psi4.set_options({'basis': 'cc-pVDZ'})
@@ -50,4 +54,8 @@ def test_cc3_energy():
 
     cc_wfn = socc.ccwfn(scf_wfn, model='CC3')
     ecc = cc_wfn.solve_cc(e_conv, r_conv, alg='AB')
+    assert (abs(epsi4 - ecc) < 1e-11)
+
+    cc_wfn = socc.ccwfn(scf_wfn, model='CC3')
+    ecc = cc_wfn.solve_cc(e_conv, r_conv, alg='IJ')
     assert (abs(epsi4 - ecc) < 1e-11)
