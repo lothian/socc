@@ -298,9 +298,9 @@ class cclambda(object):
                     x2[:,:,a,b] += (1/2) * contract('ljkc,icjk->il', l3, Wovoo)
 
         if alg == 'IJ':
-            # <0|L2 [[H^,T3],nu1]|0> --> L1
             for i in range(no):
                 for j in range(no):
+                    # <0|L2 [[H^,T3],nu1]|0> --> L1
                     t3 = t3_ij(o, v, i, j, t2, F, Wvvvo, Wovoo)
                     Zia[i] += (1/4) * contract('kabc,kbc->a', t3, l2[j])
 
@@ -314,7 +314,7 @@ class cclambda(object):
                     x2[i,j] += (1/2) * contract('kabc,bcdk->ad', l3, Wvvvo)
                     x2[i,j] -= (1/2) * contract('kdbc,bcak->ad', l3, Wvvvo)
                     for l in range(no):
-                        tmp = (1/2) * contract('kabc,lck->ab', l3, Wovoo[:,:,j,:])
+                        tmp = (1/2) * contract('kabc,ck->ab', l3, Wovoo[l,:,j,:])
                         x2[i,l] -= tmp
                         x2[l,i] += tmp
 

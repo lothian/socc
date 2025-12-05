@@ -222,6 +222,7 @@ class ccwfn(object):
                 print("\nCCWFN converged in %.3f seconds.\n" % (time.time() - ccsd_tstart))
                 print("E(REF)  = %20.15f" % self.eref)
                 if (self.model == 'CCSD(T)'):
+                    ccsd_t_tstart = time.time()
                     print("E(CCSD) = %20.15f" % ecc)
                     if self.t_alg == 'IJK':
                         print("Using IJK-driven algorithm for (T) correction.")
@@ -237,12 +238,14 @@ class ccwfn(object):
                         et = t_viking_ij(o, v, self.t1, self.t2, F, ERI)
                     print("E(T)    = %20.15f" % et)
                     ecc = ecc + et
+                    print("\n(T) correction required %.3f seconds.\n" % (time.time() - ccsd_t_tstart))
                 else:
                     print("E(%s) = %20.15f" % (self.model, ecc))
                 self.ecc = ecc
                 print("E(TOT)  = %20.15f" % (ecc + self.eref))
                 print("\nLargest T Amplitudes:")
                 print_wfn(self.t1, self.t2)
+                print("\n")
 
                 return ecc
 
