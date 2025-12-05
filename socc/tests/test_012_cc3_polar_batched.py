@@ -4,7 +4,7 @@ import pytest
 import numpy as np
 from ..data.molecules import *
 
-def test_cc3_polar():
+def test_cc3_optrot():
     psi4.core.clean()
     psi4.set_memory('2 GB')
     psi4.core.set_output_file('output.dat', False)
@@ -16,7 +16,8 @@ def test_cc3_polar():
                     'e_convergence': 1e-12,
                     'd_convergence': 1e-12,
                     'r_convergence': 1e-12,
-                    'omega' : [0.1],
+                    'omega' : [0.0],
+                    'gauge' : 'length',
                     'diis': 1})
 
     e_conv = 1e-12
@@ -25,7 +26,7 @@ def test_cc3_polar():
     mol = psi4.geometry(moldict["H2O"])
     scf_e, scf_wfn = psi4.energy('SCF', return_wfn=True)
     cc_wfn = socc.ccwfn(scf_wfn, model='CC3')
-    ecc = cc_wfn.solve_cc(e_conv, r_conv, store_triples=True)
+    ecc = cc_wfn.solve_cc(e_conv, r_conv, store_triples=False)
     hbar = socc.cchbar(cc_wfn)
     lambda_wfn = socc.cclambda(cc_wfn, hbar)
     lcc = lambda_wfn.solve_lambda(e_conv, r_conv)
@@ -37,7 +38,5 @@ def test_cc3_polar():
     omega = 0.0
     polar = ccresp.polarizability(omega)
 
-    dalton_polar = np.array([[ 0.061593757,  0.0000000, 0.0000000],
-                             [ 0.000000000,  7.0661684, 0.0000000],
-                             [ 0.000000000,  0.0000000, 3.0604929]])
-#    assert(np.allclose(dalton_polar, polar, 1e-6, 1e-6))
+    dalton_alpha_zz = 2.9989468
+    print("dalton_alpha_zz = %12.7f" % (dalton_alpha_zz))

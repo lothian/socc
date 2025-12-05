@@ -2,7 +2,7 @@ import numpy as np
 from opt_einsum import contract
 from .utils import print_wfn
 
-def t3c_ijk(o, v, i, j, k, t2, F, Wvvvo, Wovoo, omega=0.0, WithDenom=True):
+def t3_ijk(o, v, i, j, k, t2, F, Wvvvo, Wovoo, omega=0.0, WithDenom=True):
 
     abc = contract('ad,bcd->abc', t2[i,j], Wvvvo[:,:,:,k])
     abc -= contract('ad,bcd->abc', t2[k,j], Wvvvo[:,:,:,i])
@@ -27,7 +27,7 @@ def t3c_ijk(o, v, i, j, k, t2, F, Wvvvo, Wovoo, omega=0.0, WithDenom=True):
         return t3
 
 
-def t3c_abc(o, v, a, b, c, t2, F, Wvvvo, Wovoo, omega=0.0, WithDenom=True):
+def t3_abc(o, v, a, b, c, t2, F, Wvvvo, Wovoo, omega=0.0, WithDenom=True):
 
     ijk = contract('ijd,dk->ijk', t2[:,:,a], Wvvvo[b,c])
     ijk -= contract('ijd,dk->ijk', t2[:,:,b], Wvvvo[a,c])
@@ -59,14 +59,11 @@ def t_viking_ijk(o, v, t1, t2, F, ERI):
     no = x1.shape[0]
     nv = x1.shape[1]
 
-    t3_full = np.zeros((no, no, no, nv, nv, nv))
-
     for i in range(no):
         for j in range(no):
             for k in range(no):
 
-                t3 = t3c_ijk(o, v, i, j, k, t2, F, ERI[v,v,v,o], ERI[o,v,o,o])
-                t3_full[i,j,k] = t3
+                t3 = t3_ijk(o, v, i, j, k, t2, F, ERI[v,v,v,o], ERI[o,v,o,o])
 
                 x1[i] += (1/4)*contract('bc,abc->a', ERI[j,k,v,v], t3)
                 tmp = (1/2)*contract('dbc,abc->ad', ERI[v,k,v,v], t3)
@@ -92,7 +89,7 @@ def t_viking_abc(o, v, t1, t2, F, ERI):
         for b in range(nv):
             for c in range(nv):
 
-                t3 = t3c_abc(o, v, a, b, c, t2, F, ERI[v,v,v,o], ERI[o,v,o,o])
+                t3 = t3_abc(o, v, a, b, c, t2, F, ERI[v,v,v,o], ERI[o,v,o,o])
 
                 x1[a] += (1/4)*contract('jk,ijk->i', ERI[o,o,b+no,c+no], t3)
                 tmp = -(1/2)*contract('jkl,ijk->il', ERI[o,o,o,c+no], t3)
@@ -105,6 +102,58 @@ def t_viking_abc(o, v, t1, t2, F, ERI):
     et = contract('ia,ia->', t1, x1.T) + (1/4)*contract('ijab,ijab->', t2, x2.T)
 
     return et
+
+
+def t_viking_ab(o, v, t1, t2, F, ERI):
+
+    x1 = np.zeros_like(t1.T)
+    x2 = np.zeros_like(t2.T)
+    nv = x1.shape[0]
+    no = x1.shape[1]
+
+    for a in range(nv):
+        for b in range(nv):
+
+            ijkc = t3_ab(o, v, a, b, t2, F, ERI[v,v,v,o], ERI[o,v,o,o])
+
+            x1[a] += (1/4) * contract('ijkc,jkc->i', ijkc, ERI[o,o,b+no,v])
+
+            tmp = -(1/2) * contract('ijkc,jklc->il', ijkc, ERI[o,o,o,v])
+            x2[a,b] += tmp - tmp.swapaxes(0,1)
+            for d in range(nv):
+                tmp = (1/2) * contract('ijkc,kc->ij', ijkc, ERI[d+no,o,b+no,v])
+                x2[a,d] += tmp
+                x2[d,a] -= tmp
+
+    et = contract('ia,ia->', t1, x1.T) + (1/4)*contract('ijab,ijab->', t2, x2.T)
+
+    return et
+
+
+def t_viking_ij(o, v, t1, t2, F, ERI):
+
+    x1 = np.zeros_like(t1)
+    x2 = np.zeros_like(t2)
+    no = x1.shape[0]
+    nv = x1.shape[1]
+
+    for i in range(no):
+        for j in range(no):
+
+            t3 = t3_ij(o, v, i, j, t2, F, ERI[v,v,v,o], ERI[o,v,o,o])
+
+            x1[i] += (1/4) * contract('kbc,kabc->a', ERI[j,o,v,v], t3)
+            tmp = (1/2) * contract('dkbc,kabc->ad', ERI[v,o,v,v], t3)
+            x2[i,j] += tmp - tmp.swapaxes(0,1)
+            for l in range(no):
+                tmp = (1/2) * contract('kc,kabc->ab', ERI[j,o,l,v], t3)
+                x2[i,l] -= tmp
+                x2[l,i] += tmp
+
+    et = contract('ia,ia->', t1, x1) + (1/4)*contract('ijab,ijab->', t2, x2)
+
+    return et
+
 
 def l3_ijk(o, v, i, j, k, l1, l2, F, Fov, Woovv, Wvovv, Wooov, WithDenom=True):
     abc = contract('ad,dbc->abc', l2[i,j], Wvovv[:,k,:,:])
@@ -132,4 +181,184 @@ def l3_ijk(o, v, i, j, k, l1, l2, F, Fov, Woovv, Wvovv, Wooov, WithDenom=True):
         return l3/denom
     else:
         return l3
+
+
+def l3_abc(o, v, a, b, c, l1, l2, F, Fov, Woovv, Wvovv, Wooov, WithDenom=True):
+    ijk = contract('ijd,dk->ijk', l2[:,:,a,:], Wvovv[:,:,b,c])
+    ijk -= contract('ijd,dk->ijk', l2[:,:,b,:], Wvovv[:,:,a,c])
+    ijk -= contract('ijd,dk->ijk', l2[:,:,c,:], Wvovv[:,:,b,a])
+    l3 = ijk - ijk.swapaxes(0,2) - ijk.swapaxes(1,2)
+
+    ijk = contract('il,jkl->ijk', l2[:,:,a,b], Wooov[:,:,:,c])
+    ijk -= contract('il,jkl->ijk', l2[:,:,c,b], Wooov[:,:,:,a])
+    ijk -= contract('il,jkl->ijk', l2[:,:,a,c], Wooov[:,:,:,b])
+    l3 -= ijk - ijk.swapaxes(0,1) - ijk.swapaxes(0,2)
+
+    ijk = contract('i,jk->ijk', l1[:,a], Woovv[:,:,b,c]) + contract('i,jk->ijk', Fov[:,a], l2[:,:,b,c])
+    ijk -= contract('i,jk->ijk', l1[:,b], Woovv[:,:,a,c]) + contract('i,jk->ijk', Fov[:,b], l2[:,:,a,c])
+    ijk -= contract('i,jk->ijk', l1[:,c], Woovv[:,:,b,a]) + contract('i,jk->ijk', Fov[:,c], l2[:,:,b,a])
+    l3 += ijk - ijk.swapaxes(0,1) - ijk.swapaxes(0,2)
+
+    if WithDenom is True:
+        denom = np.zeros_like(l3)
+        occ = np.diag(F)[o]
+        vir = np.diag(F)[v]
+        denom += occ.reshape(-1,1,1) + occ.reshape(-1,1) + occ
+        denom -= vir[a] + vir[b] + vir[c]
+
+        return l3/denom
+    else:
+        return l3
+
+
+def t3_ab(o, v, a, b, t2, F, Wvvvo, Wovoo, omega=0.0, WithDenom=True):
+
+    ijkc = contract('jkd,cdi->ijkc', t2[:,:,a], Wvvvo[b]) - contract('ilc,ljk->ijkc', t2[:,:,b], Wovoo[:,a])
+    ijkc -= contract('jkd,cdi->ijkc', t2[:,:,b], Wvvvo[a]) - contract('ilc,ljk->ijkc', t2[:,:,a], Wovoo[:,b])
+    ijkc -= contract('jkcd,di->ijkc', t2, Wvvvo[b,a]) - contract('il,lcjk->ijkc', t2[:,:,b,a], Wovoo)
+    t3 = ijkc - ijkc.swapaxes(0,1) - ijkc.swapaxes(0,2)
+
+    if WithDenom is True:
+        denom = np.zeros_like(ijkc)
+        occ = np.diag(F)[o]
+        vir = np.diag(F)[v]
+        denom += occ.reshape(-1,1,1,1) + occ.reshape(-1,1,1) + occ.reshape(-1,1) - vir
+        denom -= vir[a] + vir[b]
+        denom += omega
+
+        return t3/denom
+    else:
+        return t3
+
+
+def l3_ab(o, v, a, b, l1, l2, F, Fov, Woovv, Wvovv, Wooov, WithDenom=True):
+    ijkc = contract('i,jkc->ijkc', l1[:,a], Woovv[:,:,b,:]) + contract('i,jkc->ijkc', Fov[:,a], l2[:,:,b,:])
+    ijkc -= contract('i,jkc->ijkc', l1[:,b], Woovv[:,:,a,:]) + contract('i,jkc->ijkc', Fov[:,b], l2[:,:,a,:])
+    ijkc -= contract('ic,jk->ijkc', l1, Woovv[:,:,b,a]) + contract('ic,jk->ijkc', Fov, l2[:,:,b,a])
+
+    ijkc += contract('jkd,dic->ijkc', l2[:,:,a,:], Wvovv[:,:,b,:]) - contract('ilc,jkl->ijkc', l2[:,:,b,:], Wooov[:,:,:,a])
+    ijkc -= contract('jkd,dic->ijkc', l2[:,:,b,:], Wvovv[:,:,a,:]) - contract('ilc,jkl->ijkc', l2[:,:,a,:], Wooov[:,:,:,b])
+    ijkc -= contract('jkcd,di->ijkc', l2, Wvovv[:,:,b,a]) - contract('il,jklc->ijkc', l2[:,:,b,a], Wooov)
+
+    l3 = ijkc - ijkc.swapaxes(0,1) - ijkc.swapaxes(0,2)
+
+    if WithDenom is True:
+        denom = np.zeros_like(l3)
+        occ = np.diag(F)[o]
+        vir = np.diag(F)[v]
+        denom += occ.reshape(-1,1,1,1) + occ.reshape(-1,1,1) + occ.reshape(-1,1) - vir
+        denom -= vir[a] + vir[b]
+
+        return l3/denom
+    else:
+        return l3
+
+
+def t3_ij(o, v, i, j, t2, F, Wvvvo, Wovoo, omega=0.0, WithDenom=True):
+
+    kabc = contract('kad,bcd->kabc', t2[j], Wvvvo[:,:,:,i]) - contract('lbc,lak->kabc', t2[i], Wovoo[:,:,j,:])
+    kabc -= contract('kad,bcd->kabc', t2[i], Wvvvo[:,:,:,j]) - contract('lbc,lak->kabc', t2[j], Wovoo[:,:,i,:])
+    kabc -= contract('ad,bcdk->kabc', t2[j,i], Wvvvo) - contract('klbc,la->kabc', t2, Wovoo[:,:,j,i])
+
+    t3 = kabc - kabc.swapaxes(1,2) - kabc.swapaxes(1,3)
+
+    if WithDenom is True:
+        denom = np.zeros_like(t3)
+        occ = np.diag(F)[o]
+        vir = np.diag(F)[v]
+        denom += occ.reshape(-1,1,1,1) - vir.reshape(-1,1,1) - vir.reshape(-1,1) - vir
+        denom += occ[i] + occ[j]
+        denom += omega
+
+        return t3/denom
+    else:
+        return t3
+
+
+def l3_ij(o, v, i, j, l1, l2, F, Fov, Woovv, Wvovv, Wooov, WithDenom=True):
+    kabc = contract('a,kbc->kabc', l1[i], Woovv[j]) + contract('a,kbc->kabc', Fov[i], l2[j])
+    kabc -= contract('a,kbc->kabc', l1[j], Woovv[i]) + contract('a,kbc->kabc', Fov[j], l2[i])
+    kabc -= contract('ka,bc->kabc', l1, Woovv[j,i]) + contract('ka,bc->kabc', Fov, l2[j,i])
+
+    kabc += contract('kad,dbc->kabc', l2[j], Wvovv[:,i,:,:]) - contract('lbc,kla->kabc', l2[i], Wooov[j])
+    kabc -= contract('kad,dbc->kabc', l2[i], Wvovv[:,j,:,:]) - contract('lbc,kla->kabc', l2[j], Wooov[i])
+    kabc -= contract('ad,dkbc->kabc', l2[j,i], Wvovv) - contract('klbc,la->kabc', l2, Wooov[j,i])
+
+    l3 = kabc - kabc.swapaxes(1,2) - kabc.swapaxes(1,3)
+
+    if WithDenom is True:
+        denom = np.zeros_like(l3)
+        occ = np.diag(F)[o]
+        vir = np.diag(F)[v]
+        denom += occ.reshape(-1,1,1,1) - vir.reshape(-1,1,1) - vir.reshape(-1,1) - vir
+        denom += occ[i] + occ[j]
+
+        return l3/denom
+    else:
+        return l3
+
+
+def X3_ijk(o, v, i, j, k, t2, F, pert, X2, Wvvvo, Wovoo, Zvvvo, Zovoo, omega=0.0):
+
+    occ = np.diag(F)[o]
+    vir = np.diag(F)[v]
+
+    # <mu3|[ABAR,T3]|0> --> X3
+    t3 = t3_ijk(o, v, i, j, k, t2, F, Wvvvo, Wovoo)
+    tmp = contract('abc,dc->abd', t3, pert.Avv)
+    x3 = tmp - tmp.swapaxes(0,2) - tmp.swapaxes(1,2)
+    denom = np.zeros_like(t3)
+    denom -= vir.reshape(-1,1,1) + vir.reshape(-1,1) + vir
+    denom += occ[i] + occ[j] + occ[k]
+    denom += omega
+    x3 = x3/denom
+
+    # <mu3|[[ABAR,T2],T2]|0> + <mu3|[[H^,T2,X1]|0> --> X3
+    x3 += t3_ijk(o, v, i, j, k, t2, F, Zvvvo, Zovoo, omega)
+
+    # <mu3|[H^,X2]|0> --> X3
+    x3 += t3_ijk(o, v, i, j, k, X2, F, Wvvvo, Wovoo, omega)
+
+    return x3
+
+
+def X3_abc(o, v, a, b, c, t2, F, pert, Wvvvo, Wovoo, omega=0.0):
+
+    occ = np.diag(F)[o]
+    vir = np.diag(F)[v]
+
+    # <mu3|[ABAR,T3]|0> --> X3
+    t3 = t3_abc(o, v, a, b, c, t2, F, Wvvvo, Wovoo)
+    tmp = -contract('ijk,kl->ijl', t3, pert.Aoo)
+    x3 = tmp - tmp.swapaxes(0,2) - tmp.swapaxes(1,2)
+    denom = np.zeros_like(t3)
+    denom += occ.reshape(-1,1,1) + occ.reshape(-1,1) + occ
+    denom -= vir[a] + vir[b] + vir[c]
+    denom += omega
+    x3 = x3/denom
+
+    return x3
+
+
+def X3_ab(o, v, a, b, t2, F, pert, X2, Wvvvo, Wovoo, Zvvvo, Zovoo, omega=0.0, WithDenom=True):
+
+    occ = np.diag(F)[o]
+    vir = np.diag(F)[v]
+
+    # <mu3|[ABAR,T3]|0> --> X3
+    t3 = t3_ab(o, v, a, b, t2, F, Wvvvo, Wovoo)
+    tmp = contract('ijkc,dc->ijkd', t3, pert.Avv)
+    x3 = tmp - tmp.swapaxes(0,2) - tmp.swapaxes(1,2)
+    denom = np.zeros_like(t3)
+    denom -= vir.reshape(-1,1,1) + vir.reshape(-1,1) + vir
+    denom += occ[i] + occ[j] + occ[k]
+    denom += omega
+    x3 = x3/denom
+
+    # <mu3|[[ABAR,T2],T2]|0> + <mu3|[[H^,T2,X1]|0> --> X3
+    x3 += t3_ab(o, v, a, b, t2, F, Zvvvo, Zovoo, omega)
+
+    # <mu3|[H^,X2]|0> --> X3
+    x3 += t3_ab(o, v, a, b, X2, F, Wvvvo, Wovoo, omega)
+
 

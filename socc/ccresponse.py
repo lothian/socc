@@ -6,7 +6,7 @@ import numpy as np
 import time
 from opt_einsum import contract
 from .utils import helper_diis, print_wfn, permute_triples
-from .cctriples import t3c_ijk, t3c_abc
+from .cctriples import t3_ijk, t3_abc, l3_ijk, l3_abc, X3_ijk, X3_abc
 
 class ccresponse(object):
     """
@@ -67,13 +67,13 @@ class ccresponse(object):
         self.pertbar = {}
 
         # Electric-dipole operator (length)
-        for axis in range(3):
+        for axis in range(2,3):
             key = "MU_" + self.cart[axis]
             self.pertbar[key] = pertbar(self.H.mu[axis], self.ccwfn)
 
         # Build the perturbed wave functions, stored in a dictionary of lists
         X = {}
-        for axis in range(3):
+        for axis in range(2,3):
             # A(w) or A(0)
             pertkey = "MU_" + self.cart[axis]
             X_key = pertkey + "_" + f"{omega:0.6f}"
@@ -88,14 +88,14 @@ class ccresponse(object):
                 X[X_key], polar = self.solve_right(self.pertbar[pertkey], -omega, e_conv, r_conv, maxiter, max_diis, start_diis)
 
         polar = np.zeros((3,3))
-        for alpha in range(3):
+        for alpha in range(2,3):
             pertkey = "MU_" + self.cart[alpha]
             if omega != 0.0:
                 X_key = pertkey + "_" + f"{-omega:0.6f}"
             else:
                 X_key = pertkey + "_" + f"{omega:0.6f}"
             pert_A = self.pertbar[pertkey]; X_A = X[X_key]
-            for beta in range(3):
+            for beta in range(2,3):
                 pertkey = "MU_" + self.cart[beta]
                 X_key = pertkey + "_" + f"{omega:0.6f}"
                 pert_B = self.pertbar[pertkey]; X_B = X[X_key]
@@ -108,12 +108,15 @@ class ccresponse(object):
                 print("LHX2Y2 = ", f"{components[3]:20.15f}")
                 if self.ccwfn.model == 'CC3':
                     print("CC3 Contributions:")
-                    print("LCX       = ", f"{components[6]:20.15f}")
-                    print("L2HX1Y3   = ", f"{components[7]:20.15f}")
-                    print("L3HX1Y2   = ", f"{components[8]:20.15f}")
-                    print("L3HX1Y1T2 = ", f"{components[9]:20.15f}")
+                    print("L2CX3     = ", f"{components[6]:20.15f}")
+                    print("L3CX3     = ", f"{components[7]:20.15f}")
+                    print("L3CX1T3   = ", f"{components[8]:20.15f}")
+                    print("L3CX2T2   = ", f"{components[9]:20.15f}")
+                    print("L2HX1Y3   = ", f"{components[10]:20.15f}")
+                    print("L3HX1Y2   = ", f"{components[11]:20.15f}")
+                    print("L3HX1Y1T2 = ", f"{components[12]:20.15f}")
 
-                polar[alpha,beta] = -1.0 * sum(components)
+                polar[alpha,beta] = -1.0 * np.sum(components)
 
         print(f"{self.ccwfn.model:s} Polarizability Tensor (Length Gauge):")
         print(polar)
@@ -252,9 +255,6 @@ class ccresponse(object):
 
         o = self.ccwfn.o
         v = self.ccwfn.v
-        l1 = self.cclambda.l1
-        l2 = self.cclambda.l2
-        hbar = self.hbar
         ERI = self.H.ERI
 
         #<0|(1+L) [ABAR, X_B]|0>
@@ -262,7 +262,7 @@ class ccresponse(object):
         polar_LCX += self.LCX(B, X_A)
 
         #<0|[[HBAR, X1_A], X1_B]|0>
-        polar_HXY = contract('ijab,ia,jb->', ERI[o,o,v,v], X_A[0], X_B[0])
+        polar_HXY = contract('ijab,ia,jb->', ERI[o,o,v,v], X_A[1], X_B[1])
 
         #<0|L[[HBAR, X1_A], X1_B]|0>
         polar_LHX1Y1 = self.LHX1Y1(X_A, X_B)
@@ -276,25 +276,138 @@ class ccresponse(object):
         #<0|L[[HBAR, X1_B], X2_A]|0>
         polar_LHY1X2 = self.LHX1Y2(X_B, X_A)
 
-        polar = [polar_LCX, polar_HXY, polar_LHX1Y1, polar_LHX2Y2, polar_LHX1Y2, polar_LHY1X2]
+        polar = np.array([polar_LCX, polar_HXY, polar_LHX1Y1, polar_LHX2Y2, polar_LHX1Y2, polar_LHY1X2])
 
-        if self.ccwfn.model == 'CC3' and self.ccwfn.store_triples is True:
-            #<0|L2[C,X3]|0> + <0|L3[C^,X3]|0> + <0|L3[[C,X1],T3]|0> + <0|L3[[C,X2],T2]|0>
-            polar_LCX_CC3 = self.LCX_CC3(A, X_B)
-            polar_LCX_CC3 += self.LCX_CC3(B, X_A)
+        if self.ccwfn.model == 'CC3':
+            if self.ccwfn.store_triples is True:
+                #<0|L2[C,X3]|0> + <0|L3[C^,X3]|0> + <0|L3[[C,X1],T3]|0> + <0|L3[[C,X2],T2]|0>
+                polar_LCX_CC3 = self.LCX_CC3(A, X_B)
+                polar_LCX_CC3 += self.LCX_CC3(B, X_A)
 
-            #<0|L2[[H,X1],Y3]|0>
-            polar_L2HX1Y3 = self.L2HX1Y3_CC3(X_A, X_B)
-            polar_L2HX1Y3 += self.L2HX1Y3_CC3(X_B, X_A)
+                #<0|L2[[H,X1],Y3]|0>
+                polar_L2HX1Y3 = self.L2HX1Y3_CC3(X_A, X_B)
+                polar_L2HX1Y3 += self.L2HX1Y3_CC3(X_B, X_A)
 
-            #<0|L3[[H^,X1],Y2]|0>
-            polar_L3HX1Y2 = self.L3HX1Y2_CC3(X_A, X_B)
-            polar_L3HX1Y2 += self.L3HX1Y2_CC3(X_B, X_A)
+                #<0|L3[[H^,X1],Y2]|0>
+                polar_L3HX1Y2 = self.L3HX1Y2_CC3(X_A, X_B)
+                polar_L3HX1Y2 += self.L3HX1Y2_CC3(X_B, X_A)
 
-            #<0|L3[[[H^,X1],Y1],T2]|0>
-            polar_L3HX1Y1T2 = self.L3HX1Y1T2_CC3(X_A, X_B)
+                #<0|L3[[[H^,X1],Y1],T2]|0>
+                polar_L3HX1Y1T2 = self.L3HX1Y1T2_CC3(X_A, X_B)
 
-            polar += [polar_LCX_CC3, polar_L2HX1Y3, polar_L3HX1Y2, polar_L3HX1Y1T2]
+            else:
+                t1 = self.ccwfn.t1
+                t2 = self.ccwfn.t2
+                l1 = self.cclambda.l1
+                l2 = self.cclambda.l2
+                F = self.ccwfn.H.F
+
+                omega_A = X_A[0]
+                omega_B = X_B[0]
+                X1_A = X_A[1]
+                X1_B = X_B[1]
+                X2_A = X_A[2]
+                X2_B = X_B[2]
+
+                Zvvvo_A, Zovoo_A = self.CC3_linresp_intermediates(o, v, A, t1, t2, X_A[1], ERI)
+                Zvvvo_B, Zovoo_B = self.CC3_linresp_intermediates(o, v, B, t1, t2, X_B[1], ERI)
+
+                Fov = self.hbar.Hov
+                Wvovv = self.hbar.Hvovv
+                Wooov = self.hbar.Hooov
+                Woooo = self.ccwfn.build_Woooo_CC3(o, v, ERI, t1)
+                Wvvvo = self.ccwfn.build_Wvvvo_CC3(o, v, ERI, t1)
+                Wovoo = self.ccwfn.build_Wovoo_CC3(o, v, ERI, t1, Woooo)
+
+                # For <0|L2[[H,X1],Y3]|0>
+                Zia_A = contract('ld,lida->ia', X1_A, ERI[o,o,v,v])
+                Zia_B = contract('ld,lida->ia', X1_B, ERI[o,o,v,v])
+                Zijlb_A = contract('ld,ijdb->ijlb', X1_A, ERI[o,o,v,v])
+                Zijlb_B = contract('ld,ijdb->ijlb', X1_B, ERI[o,o,v,v])
+                Zdjab_A = -contract('ld,ljab->djab', X1_A, ERI[o,o,v,v])
+                Zdjab_B = -contract('ld,ljab->djab', X1_B, ERI[o,o,v,v])
+
+                polar_L2CX3 = 0.0
+                polar_L3CX3 = 0.0
+                polar_L3CX1T3 = 0.0
+                polar_L3CX2T2 = 0.0
+                polar_L2HX1Y3 = 0.0
+                polar_L3HX1Y2 = 0.0
+                polar_L3HX1Y1T2 = 0.0
+
+                no = self.ccwfn.no
+                Zmk_A = np.zeros((no,no))
+                Zmk_B = np.zeros((no,no))
+                for i in range(no):
+                    for j in range(no):
+                        for k in range(no):
+                            X3_A = X3_ijk(o, v, i, j, k, t2, F, A, X2_A, Wvvvo, Wovoo, Zvvvo_A, Zovoo_A, omega_A)
+                            X3_B = X3_ijk(o, v, i, j, k, t2, F, B, X2_B, Wvvvo, Wovoo, Zvvvo_B, Zovoo_B, omega_B)
+                            l3 = l3_ijk(o, v, i, j, k, l1, l2, F, Fov, ERI[o,o,v,v], Wvovv, Wooov)
+                            t3 = t3_ijk(o, v, i, j, k, t2, F, Wvvvo, Wovoo)
+
+                            # <0|L2[A,X3]|0>
+                            tmp = contract('e,abe->ab', A.Aov[k], X3_B)
+                            polar_L2CX3 += (1/4) * contract('ab,ab->', l2[i,j], tmp)
+                            tmp = contract('e,abe->ab', B.Aov[k], X3_A)
+                            polar_L2CX3 += (1/4) * contract('ab,ab->', l2[i,j], tmp)
+
+                            # <0|L3[A^,X3]|0>
+                            tmp = contract('abe,ce->abc', X3_A, B.Avv)
+                            tmp += contract('abe,ce->abc', X3_B, A.Avv)
+                            polar_L3CX3 += (1/12) * contract('abc,abc->', tmp, l3)
+
+                            # <0|L2[[H,X1],Y3]|0>
+                            tmp = contract('abc,a->bc', X3_A, Zia_B[i])
+                            tmp += contract('abc,a->bc', X3_B, Zia_A[i])
+                            polar_L2HX1Y3 += (1/4) * contract('bc,bc->', tmp, l2[j,k])
+                            for l in range(no):
+                                tmp = contract('abc,b->ac', X3_A, Zijlb_B[i,j,l])
+                                tmp += contract('abc,b->ac', X3_B, Zijlb_A[i,j,l])
+                                polar_L2HX1Y3 -= (1/4) * contract('ac,ac->', tmp, l2[l,k])
+                            tmp = contract('abc,dab->dc', X3_A, Zdjab_B[:,j])
+                            tmp += contract('abc,dab->dc', X3_B, Zdjab_A[:,j])
+                            polar_L2HX1Y3 += (1/4) * contract('dc,dc->', tmp, l2[i,k])
+
+                nv = self.ccwfn.nv
+                Zce_A = np.zeros((nv,nv))
+                Zce_B = np.zeros((nv,nv))
+                for a in range(nv):
+                    for b in range(nv):
+                        for c in range(nv):
+                            X3_A = X3_abc(o, v, a, b, c, t2, F, A, Wvvvo, Wovoo, omega_A)
+                            X3_B = X3_abc(o, v, a, b, c, t2, F, B, Wvvvo, Wovoo, omega_B)
+                            l3 = l3_abc(o, v, a, b, c, l1, l2, F, Fov, ERI[o,o,v,v], Wvovv, Wooov)
+                            t3 = t3_abc(o, v, a, b, c, t2, F, Wvvvo, Wovoo)
+
+                            # <0|L2[A,X3]|0>
+                            tmp = contract('m,ijm->ij', A.Aov[:,c], X3_B)
+                            polar_L2CX3 += (1/4) * contract('ij,ij->', l2[:,:,a,b], tmp)
+                            tmp = contract('m,ijm->ij', B.Aov[:,c], X3_A)
+                            polar_L2CX3 += (1/4) * contract('ij,ij->', l2[:,:,a,b], tmp)
+
+                            # <0|L3[A^,X3]|0>
+                            tmp = contract('ijm,mk->ijk', X3_A, B.Aoo)
+                            tmp += contract('ijm,mk->ijk', X3_B, A.Aoo)
+                            polar_L3CX3 -= (1/12) * contract('ijk,ijk->', tmp, l3)
+
+                            # <0|L2[[H,X1],Y3]|0>
+                            tmp = contract('ijk,i->jk', X3_A, Zia_B[:,a])
+                            tmp += contract('ijk,i->jk', X3_B, Zia_A[:,a])
+                            polar_L2HX1Y3 += (1/4) * contract('jk,jk->', tmp, l2[:,:,b,c])
+                            tmp = contract('ijk,ijl->kl', X3_A, Zijlb_B[:,:,:,b])
+                            tmp += contract('ijk,ijl->kl', X3_B, Zijlb_A[:,:,:,b])
+                            polar_L2HX1Y3 += (1/4) * contract('kl,kl->', tmp, l2[:,:,a,c])
+                            for d in range(nv):
+                                tmp = contract('ijk,j->ik', X3_A, Zdjab_B[d,:,a,b])
+                                tmp += contract('ijk,j->ik', X3_B, Zdjab_A[d,:,a,b])
+                                polar_L2HX1Y3 += (1/4) * contract('ik,ik->', tmp, l2[:,:,d,c])
+
+
+                polar_LCX_CC3 = np.array([polar_L2CX3, polar_L3CX3, polar_L3CX1T3, polar_L3CX2T2])
+
+            polar = np.append(polar, polar_LCX_CC3)
+            polar = np.append(polar, [polar_L2HX1Y3, polar_L3HX1Y2, polar_L3HX1Y1T2])
 
         return polar
 
@@ -305,8 +418,8 @@ class ccresponse(object):
         l1 = self.cclambda.l1
         l2 = self.cclambda.l2
 
-        X1 = X[0]
-        X2 = X[1]
+        X1 = X[1]
+        X2 = X[2]
 
         polar = contract('ia,ia->', pert.Aov, X1) # diagram 1
 
@@ -334,8 +447,8 @@ class ccresponse(object):
         hbar = self.hbar
         ERI = self.H.ERI
 
-        X1 = X[0]
-        Y1 = Y[0]
+        X1 = X[1]
+        Y1 = Y[1]
 
         tau = contract('ia,jb->ijab', X1, Y1) + contract('ia,jb->ijab', Y1, X1)
 
@@ -364,8 +477,8 @@ class ccresponse(object):
         l2 = self.cclambda.l2
         ERI = self.H.ERI
 
-        X2 = X[1]
-        Y2 = Y[1]
+        X2 = X[2]
+        Y2 = Y[2]
 
         Zovvo = contract('mnef,njfb->mbej', ERI[o,o,v,v], Y2)
         Zoooo_A = (1/4) * contract('mnef,ijef->mnij', ERI[o,o,v,v], X2)
@@ -396,8 +509,8 @@ class ccresponse(object):
         hbar = self.hbar
         ERI = self.H.ERI
 
-        X1 = X[0]
-        Y2 = Y[1]
+        X1 = X[1]
+        Y2 = Y[2]
 
         Zov = contract('mnef,me->nf', ERI[o,o,v,v], X1)
         Zvv = (-1/2) * contract('mnef,mnaf->ea', ERI[o,o,v,v], Y2)
@@ -434,46 +547,40 @@ class ccresponse(object):
 
         t2 = self.ccwfn.t2
         l2 = self.cclambda.l2
-        X1 = X[0]
-        X2 = X[1]
+        X1 = X[1]
+        X2 = X[2]
 
-        if self.ccwfn.store_triples is True:
-            t3 = self.ccwfn.t3
-            l3 = self.cclambda.l3
-            X3 = X[2]
+        t3 = self.ccwfn.t3
+        l3 = self.cclambda.l3
+        X3 = X[3]
 
-            # <0|L2[C,X3]|0>
-            tmp = (1/4) * contract('ijab,ijkabc->kc', l2, X3)
-            polar_L2_C_X3 = contract('kc,kc->', tmp, pert.Aov)
+        # <0|L2[C,X3]|0>
+        tmp = (1/4) * contract('ijab,ijkabc->kc', l2, X3)
+        polar_L2CX3 = contract('kc,kc->', tmp, pert.Aov)
 
-            # <0|L3[C^,X3]|0>
-            tmp = contract('ijkabc,ijkabe->ce', l3, X3)
-            polar_L3_C_X3 = (1/12) * contract('ce,ce->', tmp, pert.Avv)
-            tmp = contract('ijkabc,ijmabc->mk', l3, X3)
-            polar_L3_C_X3 -= (1/12) * contract('mk,mk->', tmp, pert.Aoo)
+        # <0|L3[C^,X3]|0>
+        tmp = contract('ijkabc,ijkabe->ce', l3, X3)
+        polar_L3CX3 = (1/12) * contract('ce,ce->', tmp, pert.Avv)
+        tmp = contract('ijkabc,ijmabc->mk', l3, X3)
+        polar_L3CX3 -= (1/12) * contract('mk,mk->', tmp, pert.Aoo)
 
-            # <0|L3[[C,X1],T3]|0>
-            tmp1 = contract('mc,me->ce', X1, pert.Aov)
-            tmp2 = -(1/12) * contract('ijkabc,ijkabe->ce', l3, t3)
-            polar_L3_C_X1_T3 = contract('ce,ce->', tmp1, tmp2)
-            tmp1 = contract('ke,me->mk', X1, pert.Aov)
-            tmp2 = -(1/12) * contract('ijkabc,ijmabc->mk', l3, t3)
-            polar_L3_C_X1_T3 += contract('mk,mk->', tmp1, tmp2)
+        # <0|L3[[C,X1],T3]|0>
+        tmp1 = contract('mc,me->ce', X1, pert.Aov)
+        tmp2 = -(1/12) * contract('ijkabc,ijkabe->ce', l3, t3)
+        polar_L3CX1T3 = contract('ce,ce->', tmp1, tmp2)
+        tmp1 = contract('ke,me->mk', X1, pert.Aov)
+        tmp2 = -(1/12) * contract('ijkabc,ijmabc->mk', l3, t3)
+        polar_L3CX1T3 += contract('mk,mk->', tmp1, tmp2)
 
-            # <0|L3[[C,X2],T2]|0>
-            tmp = (1/2) * contract('ijkabc,mkbc->ijam', l3, t2)
-            tmp = -(1/2) * contract('ijam,ijae->me', tmp, X2)
-            polar_L3_C_X2_T2 = contract('me,me->', tmp, pert.Aov)
-            tmp = (1/2) * contract('ijkabc,imab->jkcm', l3, X2)
-            tmp = -(1/2) * contract('jkcm,jkec->me', tmp, t2)
-            polar_L3_C_X2_T2 += contract('me,me->', tmp, pert.Aov)
+        # <0|L3[[C,X2],T2]|0>
+        tmp = (1/2) * contract('ijkabc,mkbc->ijam', l3, t2)
+        tmp = -(1/2) * contract('ijam,ijae->me', tmp, X2)
+        polar_L3CX2T2 = contract('me,me->', tmp, pert.Aov)
+        tmp = (1/2) * contract('ijkabc,imab->jkcm', l3, X2)
+        tmp = -(1/2) * contract('jkcm,jkec->me', tmp, t2)
+        polar_L3CX2T2 += contract('me,me->', tmp, pert.Aov)
 
-        else:
-            raise Exception("Batch triples not yet complete in CC3 response...")
-
-        polar_LCX_CC3 = polar_L2_C_X3 + polar_L3_C_X3 + polar_L3_C_X1_T3 + polar_L3_C_X2_T2
-
-        return polar_LCX_CC3
+        return np.array([polar_L2CX3, polar_L3CX3, polar_L3CX1T3, polar_L3CX2T2])
 
 
     def L2HX1Y3_CC3(self, X, Y):
@@ -482,8 +589,8 @@ class ccresponse(object):
 
         ERI = self.H.ERI
         l2 = self.cclambda.l2
-        X1 = X[0]
-        Y3 = Y[2]
+        X1 = X[1]
+        Y3 = Y[3]
 
         tmp = contract('me,mnef->nf', X1, ERI[o,o,v,v])
         tmp = contract('nijfab,nf->ijab', Y3, tmp)
@@ -512,8 +619,8 @@ class ccresponse(object):
         Wvvvv = self.cclambda.build_Wvvvv_CC3(o, v, ERI, t1)
         Wovvo = self.cclambda.build_Wovvo_CC3(o, v, ERI, t1)
 
-        X1 = X[0]
-        Y2 = Y[1]
+        X1 = X[1]
+        Y2 = Y[2]
 
         tmp = contract('ie,abef->abif', X1, Wvvvv)
         tmp = contract('ijkabc,abif->jkfc', l3, tmp)
@@ -546,8 +653,8 @@ class ccresponse(object):
         Wooov = self.ccwfn.build_Wooov_CC3(o, v, ERI, t1)
         Wvovv = self.ccwfn.build_Wvovv_CC3(o, v, ERI, t1)
 
-        X1 = X[0]
-        Y1 = Y[0]
+        X1 = X[1]
+        Y1 = Y[1]
 
         tau = contract('ia,jb->ijab', X1, Y1) + contract('jb,ia->ijab', X1, Y1)
 
@@ -604,7 +711,7 @@ class ccresponse(object):
             Wvvvv = self.cclambda.build_Wvvvv_CC3(o, v, ERI, t1)
             Wovvo = self.cclambda.build_Wovvo_CC3(o, v, ERI, t1)
             if store_triples is False:
-                Yoovo, Yovvv, Zovoo, Zvvvo = self.CC3_noniter(o, v, t2, F, ERI, Wvvvo, Wovoo, pertbar)
+                Yoovo, Yovvv, Zovoo, Zvvvo = self.CC3_noniter(o, v, t2, F, ERI, Wvvvo, Wovoo, pertbar, self.ccwfn.t_alg)
 
         for niter in range(1, maxiter+1):
             pseudo_last = pseudo
@@ -620,7 +727,7 @@ class ccresponse(object):
                     z1, z2 = self.CC3_iter_full(o, v, X1, X2, t2, F, ERI, self.hbar, pertbar, Wvvvv, Woooo, Wovvo, Wvvvo, Wovoo, omega)
                 else:
                     z1, z2 = self.CC3_iter(o, v, X1, X2, t2, F, ERI, self.hbar, pertbar, Fov, Wvvvv, Woooo, Wovvo, Wvvvo, Wovoo,
-                    Yoovo, Yovvv, Zovoo, Zvvvo, omega)
+                    Yoovo, Yovvv, Zovoo, Zvvvo, omega, self.ccwfn.t_alg)
 
                 r1 += z1; r2 += z2
 
@@ -641,9 +748,9 @@ class ccresponse(object):
                 print_wfn(self.X1, self.X2)
 
                 if self.ccwfn.model == 'CC3' and store_triples is True:
-                    return [self.X1, self.X2, self.X3], pseudo
+                    return [omega, self.X1, self.X2, self.X3], pseudo
                 else:
-                    return [self.X1, self.X2], pseudo
+                    return [omega, self.X1, self.X2], pseudo
 
             diis.add_error_vector(self.X1, self.X2)
             if niter >= start_diis:
@@ -713,16 +820,34 @@ class ccresponse(object):
     # (2) <mu3|[[A,T2],T2]|0> --> X3
     #     We compute the contraction of A against one of the T2s to generate Zovoo and Zvvvo that can be dropped 
     #     into the connected T3-driver.
-    def CC3_noniter(self, o, v, t2, F, ERI, Wvvvo, Wovoo, pertbar):
+    def CC3_noniter(self, o, v, t2, F, ERI, Wvvvo, Wovoo, pertbar, alg='IJK'):
+        no = t2.shape[0]
+        nv = t2.shape[2]
+
         Yoovo = np.zeros_like(ERI[o,o,v,o])
         Yovvv = np.zeros_like(ERI[o,v,v,v])
-        no = t2.shape[0]
-        for i in range(no):
-            for j in range(no):
-                for k in range(no):
-                    t3 = t3c_ijk(o, v, i, j, k, t2, F, Wvvvo, Wovoo)
-                    Yoovo[i,j] -= (1/2) * contract('abc,lbc->al', t3, ERI[o,k,v,v])
-                    Yovvv[i] -= (1/2) * contract('abc,dc->abd', t3, ERI[j,k,v,v])
+
+        if alg == 'IJK':
+            for i in range(no):
+                for j in range(no):
+                    for k in range(no):
+                        t3 = t3_ijk(o, v, i, j, k, t2, F, Wvvvo, Wovoo)
+                        Yoovo[i,j] -= (1/2) * contract('abc,lbc->al', t3, ERI[o,k,v,v])
+                        Yovvv[i] -= (1/2) * contract('abc,dc->abd', t3, ERI[j,k,v,v])
+
+        elif alg == 'AB':
+            for a in range(nv):
+                for b in range(nv):
+                    t3 = t3_ab(o, v, a, b, t2, F, Wvvvo, Wovoo)
+                    Yoovo[:,:,a,:] -= (1/2) * contract('ijkc,lkc->ijl', t3, ERI[o,o,b+no,v])
+                    Yovvv[:,a,b,:] -= (1/2) * contract('ijkc,jkdc->id', t3, ERI[o,o,v,v])
+
+        elif alg == 'IJ':
+            for i in range(no):
+                for j in range(no):
+                    t3 = t3_ij(o, v, i, j, t2, F, Wvvvo, Wovoo)
+                    Yoovo[i,j] -= (1/2) * contract('kabc,lkbc->al', t3, ERI[o,o,v,v])
+                    Yovvv[i] -= (1/2) * contract('kabc,kdc->abd', t3, ERI[j,o,v,v])
 
         Zovoo = (1/2) * contract('ld,jkdc->lcjk', pertbar.Aov, t2)
         Zvvvo = -(1/2) * contract('ld,lkbc->bcdk', pertbar.Aov, t2)
@@ -732,7 +857,7 @@ class ccresponse(object):
     # CC3 intermediates and T3/X3 contributions to X1 and X2 equations
     # These must be computed in every iteration for building the perturbed wave functions
     # [cf the CC3_noniter() function in cclambda.py]
-    def CC3_iter(self, o, v, X1, X2, t2, F, ERI, hbar, pert, Fov, Wvvvv, Woooo, Wovvo, Wvvvo, Wovoo, Yoovo, Yovvv, Zovoo, Zvvvo, omega):
+    def CC3_iter(self, o, v, X1, X2, t2, F, ERI, hbar, pert, Fov, Wvvvv, Woooo, Wovvo, Wvvvo, Wovoo, Yoovo, Yovvv, Zovoo, Zvvvo, omega, alg='IJK'):
         no = X1.shape[0]
         nv = X1.shape[1]
 
@@ -756,66 +881,67 @@ class ccresponse(object):
 
         occ = np.diag(F)[o]
         vir = np.diag(F)[v]
-        for i in range(no):
-            for j in range(no):
-                for k in range(no):
-                    # <mu2|[[H^,T3],X1]|0> --> X2 (remaining term)
-                    t3 = t3c_ijk(o, v, i, j, k, t2, F, Wvvvo, Wovoo)
-                    z2[i,j] += contract('abc,c->ab', t3, Yov[k])
 
-                    # <mu3|[ABAR,T3]|0> --> X3
-                    tmp = contract('abc,dc->abd', t3, pert.Avv)
-                    x3 = tmp - tmp.swapaxes(0,2) - tmp.swapaxes(1,2)
-                    denom = np.zeros_like(t3)
-                    denom -= vir.reshape(-1,1,1) + vir.reshape(-1,1) + vir
-                    denom += occ[i] + occ[j] + occ[k]
-                    denom += omega
-                    x3 = x3/denom
+        if alg == 'IJK':
+            for i in range(no):
+                for j in range(no):
+                    for k in range(no):
+                        # <mu2|[[H^,T3],X1]|0> --> X2 (remaining term)
+                        t3 = t3_ijk(o, v, i, j, k, t2, F, Wvvvo, Wovoo)
+                        z2[i,j] += contract('abc,c->ab', t3, Yov[k])
 
-                    # <mu3|[[ABAR,T2],T2]|0> --> X3
-                    x3 += t3c_ijk(o, v, i, j, k, t2, F, Zvvvo, Zovoo, omega)
+                        # <mu3|[ABAR,T3]|0> --> X3
+                        tmp = contract('abc,dc->abd', t3, pert.Avv)
+                        x3 = tmp - tmp.swapaxes(0,2) - tmp.swapaxes(1,2)
+                        denom = np.zeros_like(t3)
+                        denom -= vir.reshape(-1,1,1) + vir.reshape(-1,1) + vir
+                        denom += occ[i] + occ[j] + occ[k]
+                        denom += omega
+                        x3 = x3/denom
 
-                    # <mu3|[H^,X2]|0> --> X3
-                    x3 += t3c_ijk(o, v, i, j, k, X2, F, Wvvvo, Wovoo, omega)
+                        # <mu3|[[ABAR,T2],T2]|0> + <mu3|[[H^,T2,X1]|0> --> X3
+                        x3 += t3_ijk(o, v, i, j, k, t2, F, Zvvvo+Zbcdk, Zovoo+Zlcjk, omega)
 
-                    # <mu3|[[H^,T2,X1]|0> --> X3
-                    x3 += t3c_ijk(o, v, i, j, k, t2, F, Zbcdk, Zlcjk, omega)
+                        # <mu3|[H^,X2]|0> --> X3
+                        x3 += t3_ijk(o, v, i, j, k, X2, F, Wvvvo, Wovoo, omega)
 
-                    z1[i] += (1/4) * contract('abc,bc->a', x3, ERI[j,k,v,v])
-                    z2[i,j] += contract('abc,c->ab', x3, hbar.Hov[k])
-                    tmp = (1/2) * contract('abc,dbc->ad', x3, hbar.Hvovv[:,k,:,:])
-                    z2[i,j] += tmp - tmp.swapaxes(0,1)
-                    for l in range(no):
-                        tmp = -(1/2) * contract('abc,c->ab', x3, hbar.Hooov[j,k,l,:])
-                        z2[i,l] += tmp
-                        z2[l,i] -= tmp
+                        z1[i] += (1/4) * contract('abc,bc->a', x3, ERI[j,k,v,v])
+                        z2[i,j] += contract('abc,c->ab', x3, hbar.Hov[k])
+                        tmp = (1/2) * contract('abc,dbc->ad', x3, hbar.Hvovv[:,k,:,:])
+                        z2[i,j] += tmp - tmp.swapaxes(0,1)
+                        for l in range(no):
+                            tmp = -(1/2) * contract('abc,c->ab', x3, hbar.Hooov[j,k,l,:])
+                            z2[i,l] += tmp
+                            z2[l,i] -= tmp
 
-        y1 = np.zeros_like(z1.T)
-        y2 = np.zeros_like(z2.T)
-        for a in range(nv):
-            for b in range(nv):
-                for c in range(nv):
-                    # <mu3|[ABAR,T3]|0> --> X3
-                    t3 = t3c_abc(o, v, a, b, c, t2, F, Wvvvo, Wovoo)
-                    tmp = -contract('ijk,kl->ijl', t3, pert.Aoo)
-                    x3 = tmp - tmp.swapaxes(0,2) - tmp.swapaxes(1,2)
-                    denom = np.zeros_like(t3)
-                    denom += occ.reshape(-1,1,1) + occ.reshape(-1,1) + occ
-                    denom -= vir[a] + vir[b] + vir[c]
-                    denom += omega
-                    x3 = x3/denom
+            y1 = np.zeros_like(z1.T)
+            y2 = np.zeros_like(z2.T)
+            for a in range(nv):
+                for b in range(nv):
+                    for c in range(nv):
+                        # <mu3|[ABAR,T3]|0> --> X3
+                        t3 = t3_abc(o, v, a, b, c, t2, F, Wvvvo, Wovoo)
+                        tmp = -contract('ijk,kl->ijl', t3, pert.Aoo)
+                        x3 = tmp - tmp.swapaxes(0,2) - tmp.swapaxes(1,2)
+                        denom = np.zeros_like(t3)
+                        denom += occ.reshape(-1,1,1) + occ.reshape(-1,1) + occ
+                        denom -= vir[a] + vir[b] + vir[c]
+                        denom += omega
+                        x3 = x3/denom
 
-                    y1[a] += (1/4) * contract('ijk,jk->i', x3, ERI[o,o,b+no,c+no])
-                    y2[a,b] += contract('ijk,k->ij', x3, hbar.Hov[:,c])
-                    tmp = -(1/2) * contract('ijk,jkl->il', x3, hbar.Hooov[:,:,:,c])
-                    y2[a,b] += tmp - tmp.swapaxes(0,1)
-                    for d in range(nv):
-                        tmp = (1/2) * contract('ijk,k->ij', x3, hbar.Hvovv[d,:,b,c])
-                        y2[a,d] += tmp
-                        y2[d,a] -= tmp
+                        y1[a] += (1/4) * contract('ijk,jk->i', x3, ERI[o,o,b+no,c+no])
+                        y2[a,b] += contract('ijk,k->ij', x3, hbar.Hov[:,c])
+                        tmp = -(1/2) * contract('ijk,jkl->il', x3, hbar.Hooov[:,:,:,c])
+                        y2[a,b] += tmp - tmp.swapaxes(0,1)
+                        for d in range(nv):
+                            tmp = (1/2) * contract('ijk,k->ij', x3, hbar.Hvovv[d,:,b,c])
+                            y2[a,d] += tmp
+                            y2[d,a] -= tmp
 
-        z1 += y1.T
-        z2 += y2.T
+            z1 += y1.T
+            z2 += y2.T
+
+        elif alg == 'IJ':
 
         return z1, z2
 
@@ -889,6 +1015,29 @@ class ccresponse(object):
 
         return z1, z2
 
+
+    # Compute CC3-related intermediates needed for build X3 for the linear response function
+    # This function is used by the linear response code, even though these intermediates 
+    # are also needed for computing the perturbed X3 amplitudes.
+    def CC3_linresp_intermediates(self, o, v, pert, t1, t2, X1, ERI):
+
+        Woooo = self.ccwfn.build_Woooo_CC3(o, v, ERI, t1)
+        Wvvvv = self.cclambda.build_Wvvvv_CC3(o, v, ERI, t1)
+        Wovvo = self.cclambda.build_Wovvo_CC3(o, v, ERI, t1)
+
+        Zvvvo = -(1/2) * contract('ld,lkbc->bcdk', pert.Aov, t2)
+        Zvvvo += contract('ke,bcde->bcdk', X1, Wvvvv)
+        tmp = -contract('lb,lcdk->bcdk', X1, Wovvo)
+        Zvvvo += tmp - tmp.swapaxes(0,1)
+
+        Zovoo = (1/2) * contract('ld,jkdc->lcjk', pert.Aov, t2)
+        Zovoo -= contract('mc,lmjk->lcjk', X1, Woooo)
+        tmp = contract('jd,lcdk->lcjk', X1, Wovvo)
+        Zovoo += tmp - tmp.swapaxes(2,3)
+
+        return Zvvvo, Zovoo
+
+
     def pertcheck(self, omega, e_conv=1e-13, r_conv=1e-13, maxiter=200, max_diis=8, start_diis=1):
         """
         Build first-order perturbed wave functions for all available perturbations and return a dict of their converged pseudoresponse values.  Primarily for testing purposes.
@@ -919,7 +1068,7 @@ class ccresponse(object):
 
         # Electric-dipole operator (length)
         for axis in range(1,2):
-            key = "MU_" + self.cart[axis]
+            key = "MU_" + self.cpolar_LCX_CC3art[axis]
             self.pertbar[key] = pertbar(self.H.mu[axis], self.ccwfn)
 
 #        # Magnetic-dipole operator
@@ -963,7 +1112,7 @@ class ccresponse(object):
             X_key = pertkey + "_" + f"{omega:0.6f}"
             print("Solving right-hand perturbed wave function for %s:" % (X_key))
             X[X_key], polar = self.solve_right(self.pertbar[pertkey], omega, e_conv, r_conv, maxiter, max_diis, start_diis)
-#            check[X_key] = polar
+            check[X_key] = polar
 #            if (omega != 0.0):
 #                X_key = pertkey + "_" + f"{-omega:0.6f}"
 #                print("Solving right-hand perturbed wave function for %s:" % (X_key))
@@ -1090,9 +1239,22 @@ class pertbar(object):
 
                 x2 = np.zeros_like(t2)
                 no = ccwfn.no
-                for i in range(no):
-                    for j in range(no):
-                        for k in range(no):
-                            t3 = t3c_ijk(o, v, i, j, k, t2, F, Wvvvo, Wovoo)
-                            self.Avvoo[i,j] += contract('c,abc->ab', pert[k,v], t3)
 
+                if ccwfn.t_alg == 'IJK':
+                    for i in range(no):
+                        for j in range(no):
+                            for k in range(no):
+                                t3 = t3_ijk(o, v, i, j, k, t2, F, Wvvvo, Wovoo)
+                                self.Avvoo[i,j] += contract('c,abc->ab', pert[k,v], t3)
+
+                elif ccwfn.t_alg == 'AB':
+                    for a in range(nv):
+                        for b in range(nv):
+                            t3 = t3_ab(o, v, a, b, t2, F, Wvvvo, Wovoo)
+                            self.Avvoo[:,:,a,b] += contract('kc,ijkc->ij', pert[o,v], t3)
+
+                elif ccwfn.t_alg == 'IJ':
+                    for i in range(no):
+                        for j in range(no):
+                            t3 = t3_ij(o, v, i, j, t2, F, Wvvvo, Wovoo)
+                            self.Avvoo[i,j] += contract('kc,kabc->ab', pert[o,v], t3)

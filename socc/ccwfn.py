@@ -11,7 +11,7 @@ import numpy as np
 from opt_einsum import contract
 from .hamiltonian import hamiltonian
 from .utils import helper_diis, print_wfn, permute_triples
-from .cctriples import t_viking_ijk, t_viking_abc, t3c_ijk
+from .cctriples import t_viking_ijk, t_viking_abc, t_viking_ab, t_viking_ij, t3_ijk, t3_ab, t3_ij
 import sys
 
 np.set_printoptions(precision=10, linewidth=300, threshold=sys.maxsize, suppress=True)
@@ -174,24 +174,27 @@ class ccwfn(object):
 
         o = self.o
         v = self.v
+        no = self.no
+        nv = self.nv
         F = self.H.F
         ERI = self.H.ERI
         Dia = self.Dia
         Dijab = self.Dijab
 
-        valid_t_algorithms = ['IJK', 'ABC']
-        t_alg = kwargs.pop('alg','IJK').upper()
-        if t_alg not in valid_t_algorithms:
-            raise Exception("%s is not an allowed (T) algorithm." % (t_alg))
-
         self.store_triples = kwargs.pop('store_triples', False)
         if self.store_triples is True:
             print("Triples tensors will be stored in full.")
-            no = self.no
-            nv = self.nv
             self.t3 = np.zeros((no, no, no, nv, nv, nv))
         elif self.field is True and self.model == 'CC3':
             raise Exception("External fields require full storage of triples in CC3 energy calculations.")
+
+        valid_t_algorithms = ['IJK', 'ABC', 'AB', 'IJ']
+        self.t_alg = kwargs.pop('alg','IJK').upper()
+        if self.t_alg not in valid_t_algorithms:
+            raise Exception("%s is not an allowed triples algorithm." % (self.t_alg))
+
+        if self.store_triples is False:
+            print("Will use %s-driven triples algorithm." % (self.t_alg))
 
         ecc = self.cc_energy(o, v, F, ERI, self.t1, self.t2)
         print("CC Iter %3d: CC Ecorr = %.15f  dE = % .5E  MP2" % (0, ecc, -ecc))
@@ -219,19 +222,30 @@ class ccwfn(object):
                 print("\nCCWFN converged in %.3f seconds.\n" % (time.time() - ccsd_tstart))
                 print("E(REF)  = %20.15f" % self.eref)
                 if (self.model == 'CCSD(T)'):
+                    ccsd_t_tstart = time.time()
                     print("E(CCSD) = %20.15f" % ecc)
-                    if t_alg == 'IJK':
+                    if self.t_alg == 'IJK':
+                        print("Using IJK-driven algorithm for (T) correction.")
                         et = t_viking_ijk(o, v, self.t1, self.t2, F, ERI)
-                    else:
+                    elif self.t_alg == 'ABC':
+                        print("Using ABC-driven algorithm for (T) correction.")
                         et = t_viking_abc(o, v, self.t1, self.t2, F, ERI)
+                    elif self.t_alg == 'AB':
+                        print("Using AB-driven algorithm for (T) correction.")
+                        et = t_viking_ab(o, v, self.t1, self.t2, F, ERI)
+                    else:
+                        print("Using IJ-driven algorithm for (T) correction.")
+                        et = t_viking_ij(o, v, self.t1, self.t2, F, ERI)
                     print("E(T)    = %20.15f" % et)
                     ecc = ecc + et
+                    print("\n(T) correction required %.3f seconds.\n" % (time.time() - ccsd_t_tstart))
                 else:
                     print("E(%s) = %20.15f" % (self.model, ecc))
                 self.ecc = ecc
                 print("E(TOT)  = %20.15f" % (ecc + self.eref))
                 print("\nLargest T Amplitudes:")
                 print_wfn(self.t1, self.t2)
+                print("\n")
 
                 return ecc
 
@@ -278,7 +292,7 @@ class ccwfn(object):
                 else:
                     x1, x2 = self.CC3_full(o, v, F, ERI, Fme, t1, t2)
             else:
-                x1, x2 = self.CC3(o, v, F, ERI, Fme, t1, t2)
+                x1, x2 = self.CC3(o, v, F, ERI, Fme, t1, t2, self.t_alg)
 
             r1 += x1; r2 += x2
 
@@ -413,31 +427,71 @@ class ccwfn(object):
         return Wvvvo
 
 
-    def CC3(self, o, v, F, ERI, Fme, t1, t2):
+    def CC3(self, o, v, F, ERI, Fme, t1, t2, alg='IJK'):
         Woooo = self.build_Woooo_CC3(o, v, ERI, t1)
         Wovoo = self.build_Wovoo_CC3(o, v, ERI, t1, Woooo)
         Wooov = self.build_Wooov_CC3(o, v, ERI, t1)
         Wvovv = self.build_Wvovv_CC3(o, v, ERI, t1)
         Wvvvo = self.build_Wvvvo_CC3(o, v, ERI, t1)
 
-        x1 = np.zeros_like(t1)
-        x2 = np.zeros_like(t2)
-        no = x1.shape[0]
-        for i in range(no):
-            for j in range(no):
-                for k in range(no):
-                    t3 = t3c_ijk(o, v, i, j, k, t2, F, Wvvvo, Wovoo)
+        if alg == 'IJK':
+            x1 = np.zeros_like(t1)
+            x2 = np.zeros_like(t2)
+            no = x1.shape[0]
+            for i in range(no):
+                for j in range(no):
+                    for k in range(no):
+                        t3 = t3_ijk(o, v, i, j, k, t2, F, Wvvvo, Wovoo)
 
-                    x1[i] += (1/4)*contract('bc,abc->a', ERI[j,k,v,v], t3)
-                    x2[i,j] += contract('c,abc->ab', Fme[k], t3)
-                    x2[i,j] += (1/2)*contract('dbc,abc->ad', Wvovv[:,k,:,:], t3)
-                    x2[i,j] -= (1/2)*contract('abc,dbc->ad', Wvovv[:,k,:,:], t3)
+                        x1[i] += (1/4)*contract('bc,abc->a', ERI[j,k,v,v], t3)
+                        x2[i,j] += contract('c,abc->ab', Fme[k], t3)
+                        x2[i,j] += (1/2)*contract('dbc,abc->ad', Wvovv[:,k,:,:], t3)
+                        x2[i,j] -= (1/2)*contract('abc,dbc->ad', Wvovv[:,k,:,:], t3)
+                        for l in range(no):
+                            tmp = (1/2)*contract('c,abc->ab', Wooov[j,k,l,:], t3)
+                            x2[i,l] -= tmp
+                            x2[l,i] += tmp
+
+            return x1, x2
+
+        elif alg == 'AB':
+            x1 = np.zeros_like(t1.T)
+            x2 = np.zeros_like(t2.T)
+            nv = x1.shape[0]
+            no = x1.shape[1]
+            for a in range(nv):
+                for b in range(nv):
+                    ijkc = t3_ab(o, v, a, b, t2, F, Wvvvo, Wovoo)
+
+                    x1[a] += (1/4) * contract('ijkc,jkc->i', ijkc, ERI[o,o,b+no,v])
+                    x2[a,b] += contract('kc,ijkc->ij', Fme, ijkc)
+                    tmp = -(1/2) * contract('ijkc,jklc->il', ijkc, Wooov)
+                    x2[a,b] += tmp - tmp.swapaxes(0,1)
+                    for d in range(nv):
+                        tmp = (1/2) * contract('ijkc,kc->ij', ijkc, Wvovv[d,:,b,:])
+                        x2[a,d] += tmp
+                        x2[d,a] -= tmp
+
+            return x1.T, x2.T
+
+        if alg == 'IJ':
+            x1 = np.zeros_like(t1)
+            x2 = np.zeros_like(t2)
+            no = x1.shape[0]
+            for i in range(no):
+                for j in range(no):
+                    t3 = t3_ij(o, v, i, j, t2, F, Wvvvo, Wovoo)
+
+                    x1[i] += (1/4)*contract('kbc,kabc->a', ERI[j,o,v,v], t3)
+                    x2[i,j] += contract('kc,kabc->ab', Fme, t3)
+                    x2[i,j] += (1/2)*contract('dkbc,kabc->ad', Wvovv, t3)
+                    x2[i,j] -= (1/2)*contract('akbc,kdbc->ad', Wvovv, t3)
                     for l in range(no):
-                        tmp = (1/2)*contract('c,abc->ab', Wooov[j,k,l,:], t3)
+                        tmp = (1/2)*contract('kc,kabc->ab', Wooov[j,:,l,:], t3)
                         x2[i,l] -= tmp
                         x2[l,i] += tmp
 
-        return x1, x2
+            return x1, x2
 
 
     def CC3_full(self, o, v, F, ERI, Fme, t1, t2, V=0):
