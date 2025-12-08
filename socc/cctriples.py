@@ -362,3 +362,8 @@ def X3_ab(o, v, a, b, t2, F, pert, X2, Wvvvo, Wovoo, Zvvvo, Zovoo, omega=0.0, Wi
     x3 += t3_ab(o, v, a, b, X2, F, Wvvvo, Wovoo, omega)
 
 
+def t3_ia(o, v, i, a, t2, F, Wvvvo, Wovoo, omega=0.0, WithDenom=True):
+
+    jkbc = contract('jd,bcdk->jkcd', t2[i,:,a], Wvvvo) - contract('lbc,ljk->jkbc', t2[i], Wovoo[:,a])
+    jkbc -= contract('jlbc,lk->jkbc', t2, Wovoo[:,a,i])
+    jkbc -= contract('klbc,lj->jkbc', t2, Wovoo[:,a,,:i])
