@@ -11,7 +11,7 @@ import numpy as np
 from opt_einsum import contract
 from .hamiltonian import hamiltonian
 from .utils import helper_diis, print_wfn, permute_triples
-from .cctriples import t_viking_ijk, t_viking_abc, t_viking_ab, t_viking_ij, t3_ijk, t3_ab, t3_ij
+from .cctriples import t_viking_ijk, t_viking_abc, t_viking_ab, t_viking_ij, t_viking_ia, t3_ijk, t3_ab, t3_ij, t3_ia
 import sys
 
 np.set_printoptions(precision=10, linewidth=300, threshold=sys.maxsize, suppress=True)
@@ -188,7 +188,7 @@ class ccwfn(object):
         elif self.field is True and self.model == 'CC3':
             raise Exception("External fields require full storage of triples in CC3 energy calculations.")
 
-        valid_t_algorithms = ['IJK', 'ABC', 'AB', 'IJ']
+        valid_t_algorithms = ['IJK', 'ABC', 'AB', 'IJ', 'IA']
         self.t_alg = kwargs.pop('alg','IJK').upper()
         if self.t_alg not in valid_t_algorithms:
             raise Exception("%s is not an allowed triples algorithm." % (self.t_alg))
@@ -233,9 +233,12 @@ class ccwfn(object):
                     elif self.t_alg == 'AB':
                         print("Using AB-driven algorithm for (T) correction.")
                         et = t_viking_ab(o, v, self.t1, self.t2, F, ERI)
-                    else:
+                    elif self.t_alg == 'IJ':
                         print("Using IJ-driven algorithm for (T) correction.")
                         et = t_viking_ij(o, v, self.t1, self.t2, F, ERI)
+                    else:
+                        print("Using IA-driven algorithm for (T) correction.")
+                        et = t_viking_ia(o, v, self.t1, self.t2, F, ERI)
                     print("E(T)    = %20.15f" % et)
                     ecc = ecc + et
                     print("\n(T) correction required %.3f seconds.\n" % (time.time() - ccsd_t_tstart))

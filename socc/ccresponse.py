@@ -941,7 +941,7 @@ class ccresponse(object):
             z1 += y1.T
             z2 += y2.T
 
-        elif alg == 'IJ':
+        #elif alg == 'IJ':
 
         return z1, z2
 

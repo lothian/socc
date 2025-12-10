@@ -40,6 +40,10 @@ def test_ccsd_t_energy():
     ecc = cc_wfn.solve_cc(e_conv, r_conv, alg='IJ')
     assert (abs(epsi4 - ecc) < 1e-11)
 
+    cc_wfn = socc.ccwfn(scf_wfn, model='CCSD(T)')
+    ecc = cc_wfn.solve_cc(e_conv, r_conv, alg='IA')
+    assert (abs(epsi4 - ecc) < 1e-11)
+
     # cc-pVDZ basis set
     epsi4 = -0.222029814166783-0.003861236558799
 
@@ -60,4 +64,8 @@ def test_ccsd_t_energy():
 
     cc_wfn = socc.ccwfn(scf_wfn, model='CCSD(T)')
     ecc = cc_wfn.solve_cc(e_conv, r_conv, alg='IJ')
+    assert (abs(epsi4 - ecc) < 1e-11)
+
+    cc_wfn = socc.ccwfn(scf_wfn, model='CCSD(T)')
+    ecc = cc_wfn.solve_cc(e_conv, r_conv, alg='IA')
     assert (abs(epsi4 - ecc) < 1e-11)
